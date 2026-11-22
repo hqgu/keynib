@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const ca = fs.readFileSync(path.join(os.homedir(), '.office-addin-dev-certs/ca.crt'));
-// --host Word / Excel 指定目标程序，默认 PowerPoint
+// --host Word / Excel 指定目标程序，默认 PowerPoint；--web 指网页版（默认 Mac 桌面版）
 const args = process.argv.slice(2);
 let host = 'PowerPoint';
 const hi = args.indexOf('--host');
@@ -18,6 +18,10 @@ if (hi >= 0) {
   host = args[hi + 1];
   args.splice(hi, 2);
 }
+const wi = args.indexOf('--web');
+const platform = wi >= 0 ? 'OfficeOnline' : 'Mac';
+if (wi >= 0) args.splice(wi, 1);
+host = host.includes('@') ? host : `${host}@${platform}`;
 const [type, raw] = args;
 if (!type) {
   console.error('用法：node scripts/bridge.mjs <status|ping|selftest|deck|chat|undoLast|chatState|newChat|settings> [payload]');

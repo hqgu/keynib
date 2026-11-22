@@ -200,7 +200,8 @@ export function startDevBridge() {
   (async () => {
     for (;;) {
       try {
-        const host = encodeURIComponent(String(Office.context?.host ?? 'Unknown'));
+        // 按"宿主@平台"路由，区分桌面版与网页版（如 PowerPoint@Mac、PowerPoint@OfficeOnline）
+        const host = encodeURIComponent(`${Office.context?.host ?? 'Unknown'}@${Office.context?.platform ?? 'Unknown'}`);
         const res = await fetch(`/__bridge/next?host=${host}`, { cache: 'no-store' });
         if (res.status !== 200) continue;
         const cmd = await res.json();

@@ -111,14 +111,21 @@ function Step({ st }: { st: StepView }) {
   );
 }
 
+// 破坏性操作的确认：两个按钮同等权重，"跳过"在前并默认聚焦；执行按钮写明动作、红字
+// （实测中用户两次在看清内容前点了醒目的主按钮"确认执行"）
+export function confirmVerb(description: string): string {
+  const m = /^(删除|覆盖|清空|替换)/.exec(description);
+  return m ? `确认${m[1]}` : '确认执行';
+}
+
 export function ConfirmCard({ description, onAnswer }: { description: string; onAnswer: (ok: boolean) => void }) {
   const s = useStyles();
   return (
-    <div className={s.warnCard} role="alertdialog">
+    <div className={s.warnCard} role="alertdialog" aria-label="需要你确认">
       <div><WarningFilled /> <b>需要你确认：</b>{description}</div>
       <div className={s.row}>
-        <Button size="small" appearance="primary" onClick={() => onAnswer(true)}>确认执行</Button>
-        <Button size="small" onClick={() => onAnswer(false)}>跳过</Button>
+        <Button size="small" autoFocus onClick={() => onAnswer(false)}>跳过，不执行</Button>
+        <Button size="small" className={s.err} onClick={() => onAnswer(true)}>{confirmVerb(description)}</Button>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 // 开发测试通道（Dev Bridge，仅 `vite` 开发服务器生效，生产构建不包含）
 // 终端 → POST /__bridge/cmd → 面板长轮询 GET /__bridge/next?host=… 取到命令并执行 → POST /__bridge/result → 终端拿到结果。
-// 多个 Office 程序同时打开面板时，按 host 路由（默认 PowerPoint）。
+// 多个 Office 程序同时打开面板时，按 host@platform 路由（默认 PowerPoint@Mac）。
 
 import type { Plugin } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -70,7 +70,7 @@ export function devBridge(): Plugin {
           send(res, 204);
         } else if (req.method === 'POST' && url.pathname === '/cmd') {
           const body = JSON.parse((await readBody(req)) || '{}');
-          const cmd: Cmd = { id: Math.random().toString(36).slice(2), type: body.type, host: body.host ?? 'PowerPoint', payload: body.payload };
+          const cmd: Cmd = { id: Math.random().toString(36).slice(2), type: body.type, host: body.host ?? 'PowerPoint@Mac', payload: body.payload };
           pending.set(cmd.id, res);
           queue.push(cmd);
           dispatch();
