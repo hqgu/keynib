@@ -18,6 +18,8 @@ if (!https) {
 }
 
 export default defineConfig({
+  // 生产构建部署在 GitHub Pages 子路径（/keynib/）；开发时为根路径
+  base: process.env.KEYNIB_BASE ?? '/',
   plugins: [react(), devBridge()],
   server: { port: 3000, strictPort: true, https },
   build: {

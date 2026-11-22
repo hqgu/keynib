@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>隐私说明 · 妙笔 Keynib</title>
+<link rel="icon" href="assets/icon-32.png" />
+<style>
+  :root { --fg:#1f2328; --muted:#59636e; --brand:#1F6F68; --bg:#ffffff; --card:#f6f8fa; --line:#d1d9e0; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e6edf3; --muted:#9198a1; --brand:#4fb3a9; --bg:#0d1117; --card:#161b22; --line:#30363d; } }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.7 -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { color:var(--brand); margin-bottom:4px; } h2 { margin-top:32px; border-bottom:1px solid var(--line); padding-bottom:4px; }
+  .muted { color:var(--muted); font-size:14px; } a { color:var(--brand); }
+  table { border-collapse:collapse; width:100%; font-size:15px; } td, th { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:var(--card); }
+</style>
+</head>
+<body>
+<main>
+  <h1>隐私说明</h1>
+  <p class="muted">妙笔 Keynib · 更新于 2026-11-22 · <a href="./">返回首页</a> · <a href="#en">English</a></p>
+
+  <p><strong>一句话：妙笔没有服务器，不收集任何数据。</strong>它是一个运行在你的 Office 里的网页面板，你的文档内容和 API Key 只在你的电脑与你自己选择的服务之间传输。</p>
+
+  <h2>数据去向</h2>
+  <table>
+    <tr><th>数据</th><th>去向</th><th>说明</th></tr>
+    <tr><td>API Key</td><td>只保存在你的电脑（Office 面板的本地存储）</td><td>可在设置中选择"仅本次使用"，关闭面板即清除；也可一键清除。导出"配置码"时含 Key 必须设口令加密。</td></tr>
+    <tr><td>文档内容（你让 AI 处理的部分）</td><td>直接从你的电脑发送到你在设置中选择的大模型服务</td><td>受该服务自身的隐私政策约束。处理机密资料时，可在设置中使用本地模型（自定义端点）。</td></tr>
+    <tr><td>文献检索词（作者、期刊、年份、主题词）</td><td>美国国家医学图书馆 PubMed（NCBI E-utilities）</td><td>仅在你开启"允许联网核对文献"后发送；不发送文档内容。默认关闭。</td></tr>
+    <tr><td>会话历史、设置、演示规范</td><td>只保存在你的电脑</td><td>可在设置中清除。不同 Office 程序之间不共享，可用配置码手动同步。</td></tr>
+    <tr><td>使用统计、错误日志</td><td>不收集</td><td>妙笔不含任何统计、分析或遥测代码。</td></tr>
+  </table>
+
+  <h2>网页托管</h2>
+  <p>面板网页托管在 GitHub Pages（<code>hqgu.github.io</code>）。加载面板时，GitHub 可能按其隐私政策记录访问日志（如 IP 地址）。Office 加载面板所需的 <code>office.js</code> 由微软提供。</p>
+
+  <h2>开源</h2>
+  <p>全部代码以 MIT 协议开源：<a href="https://github.com/hqgu/keynib">github.com/hqgu/keynib</a>，你可以自行审查上述说法。</p>
+
+  <h2>联系</h2>
+  <p>问题与建议请在 <a href="https://github.com/hqgu/keynib/issues">GitHub Issues</a> 提出。</p>
+
+  <h2 id="en">Privacy (English)</h2>
+  <p><strong>Keynib has no server and collects no data.</strong> It is a web pane running inside Office. Your document content and API keys travel only between your computer and the services you choose.</p>
+  <ul>
+    <li><strong>API keys</strong> are stored only on your computer (or for the current session only, if you choose). Config codes containing keys are passphrase-encrypted.</li>
+    <li><strong>Document content</strong> you ask the AI to work on is sent directly from your computer to the model provider you selected, under that provider's privacy policy. For confidential material you can use a local model via a custom endpoint.</li>
+    <li><strong>Citation search terms</strong> (author, journal, year, keywords) are sent to PubMed (NCBI) only if you enable citation checks. Document content is never sent. Off by default.</li>
+    <li><strong>Chat history and settings</strong> stay on your computer.</li>
+    <li><strong>No analytics or telemetry</strong> of any kind.</li>
+    <li>The pane is hosted on GitHub Pages, which may keep access logs per its own policy. Source code: <a href="https://github.com/hqgu/keynib">github.com/hqgu/keynib</a> (MIT).</li>
+  </ul>
+</main>
+</body>
+</html>

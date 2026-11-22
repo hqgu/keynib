@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 妙笔 Keynib 开发清单（dev）。生产清单将指向正式静态站点域名。 -->
+<!-- 由 scripts/gen-manifest.mjs 生成，请勿手改 -->
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
            xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
@@ -12,7 +12,7 @@
   <DisplayName DefaultValue="妙笔 Keynib (Dev)">
     <Override Locale="en-US" Value="Keynib (Dev)"/>
   </DisplayName>
-  <Description DefaultValue="自带密钥（BYOK）的 AI 写作与编辑助手，支持 PowerPoint、Word、Excel。">
+  <Description DefaultValue="自带密钥（BYOK）的 AI 写作、演示与数据分析助手，支持 PowerPoint、Word、Excel。">
     <Override Locale="en-US" Value="Bring-your-own-key AI assistant for PowerPoint, Word and Excel."/>
   </Description>
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>

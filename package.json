@@ -13,10 +13,11 @@
     "build": "npm run build -w @keynib/taskpane",
     "typecheck": "tsc -p apps/taskpane/tsconfig.json && tsc -p packages/providers/tsconfig.json && tsc -p packages/core/tsconfig.json",
     "certs": "office-addin-dev-certs install --days 365",
-    "validate": "office-addin-manifest validate manifest/manifest.dev.xml",
+    "validate": "office-addin-manifest validate manifest/manifest.dev.xml && office-addin-manifest validate manifest/manifest.prod.xml",
     "sideload:mac": "node scripts/sideload-mac.mjs",
     "probe:cors": "node scripts/cors-preflight.mjs",
-    "test": "node --test packages/*/test/ apps/*/test/"
+    "test": "node --test packages/*/test/ apps/*/test/",
+    "manifest": "node scripts/gen-manifest.mjs"
   },
   "devDependencies": {
     "office-addin-dev-certs": "^1.0.0",
