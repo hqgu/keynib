@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Input, makeStyles, Tab, TabList, Text, tokens } from '@fluentui/react-components';
 import { CopyRegular, DeleteRegular, SearchRegular } from '@fluentui/react-icons';
+import { t } from '../i18n';
 import { currentDoc, deleteSession, listSessions, sessionToMarkdown, type Session } from '../state/sessions';
 
 const useStyles = makeStyles({
@@ -22,11 +23,11 @@ const useStyles = makeStyles({
   sub: { fontSize: '11px', color: tokens.colorNeutralForeground3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
 });
 
-function dayLabel(t: number) {
-  const d = new Date(t);
+function dayLabel(time: number) {
+  const d = new Date(time);
   const today = new Date();
   const diff = Math.floor((new Date(today.toDateString()).getTime() - new Date(d.toDateString()).getTime()) / 86400000);
-  return diff === 0 ? '今天' : diff === 1 ? '昨天' : diff < 7 ? `${diff} 天前` : d.toLocaleDateString();
+  return diff === 0 ? t('今天') : diff === 1 ? t('昨天') : diff < 7 ? t('{n} 天前', { n: diff }) : d.toLocaleDateString();
 }
 
 export function HistoryView({ onOpen }: { onOpen: (s: Session) => void }) {
@@ -55,11 +56,11 @@ export function HistoryView({ onOpen }: { onOpen: (s: Session) => void }) {
   return (
     <div className={s.root}>
       <TabList selectedValue={scope} onTabSelect={(_, d) => setScope(d.value as 'doc' | 'all')} size="small">
-        <Tab value="doc">当前文档</Tab>
-        <Tab value="all">全部</Tab>
+        <Tab value="doc">{t('当前文档')}</Tab>
+        <Tab value="all">{t('全部')}</Tab>
       </TabList>
-      <Input contentBefore={<SearchRegular />} placeholder="搜索会话" value={q} onChange={(_, d) => setQ(d.value)} />
-      {shown.length === 0 && <Text size={200}>{scope === 'doc' ? '这份文档还没有会话。' : '还没有会话。'}</Text>}
+      <Input contentBefore={<SearchRegular />} placeholder={t('搜索会话')} value={q} onChange={(_, d) => setQ(d.value)} />
+      {shown.length === 0 && <Text size={200}>{scope === 'doc' ? t('这份文档还没有会话。') : t('还没有会话。')}</Text>}
       {shown.map((x) => {
         const g = dayLabel(x.updatedAt);
         const header = g !== lastGroup ? <div className={s.group}>{g}</div> : null;
@@ -72,22 +73,22 @@ export function HistoryView({ onOpen }: { onOpen: (s: Session) => void }) {
                 <div className={s.title}>{x.title}</div>
                 <div className={s.sub}>
                   {scope === 'all' ? `${x.host} · ${x.docName} · ` : ''}
-                  {x.model} · {x.messages.filter((m) => m.role === 'user').length} 条提问
+                  {x.model} · {t('{n} 条提问', { n: x.messages.filter((m) => m.role === 'user').length })}
                 </div>
               </div>
               <Button
                 size="small"
                 appearance="subtle"
                 icon={<CopyRegular />}
-                aria-label="复制为 Markdown"
-                title="复制为 Markdown"
+                aria-label={t('复制为 Markdown')}
+                title={t('复制为 Markdown')}
                 onClick={() => navigator.clipboard?.writeText(sessionToMarkdown(x))}
               />
               <Button
                 size="small"
                 appearance="subtle"
                 icon={<DeleteRegular />}
-                aria-label="删除"
+                aria-label={t('删除')}
                 onClick={async () => {
                   await deleteSession(x.id);
                   reload();

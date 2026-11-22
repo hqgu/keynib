@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button, makeStyles, Spinner, tokens } from '@fluentui/react-components';
+import { t } from '../i18n';
 import {
   ArrowUndoRegular,
   CheckmarkCircleFilled,
@@ -97,14 +98,14 @@ function Step({ st }: { st: StepView }) {
       <div className={s.stepHead} onClick={() => setOpen(!open)} role="button" aria-expanded={open}>
         {icon}
         <span className={s.stepLabel}>{st.label}</span>
-        <span className={s.stepSummary}>{st.status === 'denied' ? '已拒绝' : st.summary}</span>
+        <span className={s.stepSummary}>{st.status === 'denied' ? t('已拒绝') : st.summary}</span>
         {st.ms !== undefined && <span className={s.stepMs}>{(st.ms / 1000).toFixed(1)}s</span>}
         {open ? <ChevronDownRegular /> : <ChevronRightRegular />}
       </div>
       {open && (
         <div className={s.detail}>
-          {st.args && `参数：${st.args}\n`}
-          {st.result && `结果：${st.result.slice(0, 2000)}`}
+          {st.args && `${t('参数：')}${st.args}\n`}
+          {st.result && `${t('结果：')}${st.result.slice(0, 2000)}`}
         </div>
       )}
     </div>
@@ -114,17 +115,18 @@ function Step({ st }: { st: StepView }) {
 // 破坏性操作的确认：两个按钮同等权重，"跳过"在前并默认聚焦；执行按钮写明动作、红字
 // （实测中用户两次在看清内容前点了醒目的主按钮"确认执行"）
 export function confirmVerb(description: string): string {
-  const m = /^(删除|覆盖|清空|替换)/.exec(description);
-  return m ? `确认${m[1]}` : '确认执行';
+  if (/^(删除|Delete)/i.test(description)) return t('确认删除');
+  if (/^(覆盖|Overwrite)/i.test(description)) return t('确认覆盖');
+  return t('确认执行');
 }
 
 export function ConfirmCard({ description, onAnswer }: { description: string; onAnswer: (ok: boolean) => void }) {
   const s = useStyles();
   return (
-    <div className={s.warnCard} role="alertdialog" aria-label="需要你确认">
-      <div><WarningFilled /> <b>需要你确认：</b>{description}</div>
+    <div className={s.warnCard} role="alertdialog" aria-label={t('需要你确认')}>
+      <div><WarningFilled /> <b>{t('需要你确认：')}</b>{description}</div>
       <div className={s.row}>
-        <Button size="small" autoFocus onClick={() => onAnswer(false)}>跳过，不执行</Button>
+        <Button size="small" autoFocus onClick={() => onAnswer(false)}>{t('跳过，不执行')}</Button>
         <Button size="small" className={s.err} onClick={() => onAnswer(true)}>{confirmVerb(description)}</Button>
       </div>
     </div>
@@ -153,16 +155,13 @@ export function ChangeCard({
   const [err, setErr] = useState('');
   return (
     <div className={s.changeCard}>
-      <b>本轮变更</b>　
-      {label ?? (
-        <>
-          新增 {created} 页 · 修改 {modified} 页
-          {modifiedIndexes && modifiedIndexes.length > 0 && <span>（第 {modifiedIndexes.join('、')} 页）</span>}
-        </>
-      )}
+      <b>{t('本轮变更')}</b>{' '}
+      {label ??
+        t('新增 {created} 页 · 修改 {modified} 页', { created: created ?? 0, modified: modified ?? 0 }) +
+          (modifiedIndexes?.length ? t('（第 {list} 页）', { list: modifiedIndexes.join(t('、')) }) : '')}
       <div className={s.row}>
         {undone ? (
-          <span>✓ 已撤销</span>
+          <span>{t('✓ 已撤销')}</span>
         ) : (
           <Button
             size="small"
@@ -179,13 +178,13 @@ export function ChangeCard({
               setBusy(false);
             }}
           >
-            撤销本轮
+            {t('撤销本轮')}
           </Button>
         )}
-        {!canUndo && !undone && <span>只能撤销最近一轮</span>}
-        {err && <span className={s.err}>撤销失败：{err}</span>}
+        {!canUndo && !undone && <span>{t('只能撤销最近一轮')}</span>}
+        {err && <span className={s.err}>{t('撤销失败：')}{err}</span>}
       </div>
-      {!undone && canUndo && <div style={{ marginTop: 4, color: tokens.colorNeutralForeground3 }}>撤销会恢复到本轮开始前（新建的结果表会被删除），期间你手动做的修改也会被还原。关闭或刷新面板后无法再点此撤销，届时可按 ⌘Z / Ctrl+Z。</div>}
+      {!undone && canUndo && <div style={{ marginTop: 4, color: tokens.colorNeutralForeground3 }}>{t('撤销会恢复到本轮开始前（新建的结果表会被删除），期间你手动做的修改也会被还原。关闭或刷新面板后无法再点此撤销，届时可按 ⌘Z / Ctrl+Z。')}</div>}
     </div>
   );
 }
@@ -197,7 +196,7 @@ export function Reasoning({ text, live }: { text: string; live?: boolean }) {
   return (
     <div className={s.reasoning}>
       <span role="button" onClick={() => setOpen(!open)} style={{ cursor: 'pointer' }}>
-        {open ? <ChevronDownRegular /> : <ChevronRightRegular />} {live ? '思考中…' : '思考过程'}
+        {open ? <ChevronDownRegular /> : <ChevronRightRegular />} {live ? t('思考中…') : t('思考过程')}
       </span>
       {open && <div className={s.reasoningBody}>{text}</div>}
     </div>
@@ -233,27 +232,27 @@ export function RevisionCard({
   };
   return (
     <div className={s.changeCard}>
-      <b>本轮修订</b>　{count} 处
+      <b>{t('本轮修订')}</b> {t('{n} 处', { n: count })}
       <div className={s.row}>
         {state === 'accepted' ? (
-          <span>✓ 已全部接受</span>
+          <span>{t('✓ 已全部接受')}</span>
         ) : state === 'rejected' ? (
-          <span>✓ 已全部拒绝，文档已恢复</span>
+          <span>{t('✓ 已全部拒绝，文档已恢复')}</span>
         ) : (
           <>
             <Button size="small" appearance="primary" disabled={!canSettle || !!busy} icon={busy === 'accept' ? <Spinner size="extra-tiny" /> : undefined} onClick={() => run('accept', onAccept)}>
-              全部接受
+              {t('全部接受')}
             </Button>
             <Button size="small" disabled={!canSettle || !!busy} icon={busy === 'reject' ? <Spinner size="extra-tiny" /> : <ArrowUndoRegular />} onClick={() => run('reject', onReject)}>
-              全部拒绝
+              {t('全部拒绝')}
             </Button>
           </>
         )}
-        {err && <span className={s.err}>操作失败：{err}</span>}
+        {err && <span className={s.err}>{t('操作失败：')}{err}</span>}
       </div>
       {(state === 'pending' || state === 'open') && (
         <div style={{ marginTop: 4, color: tokens.colorNeutralForeground3 }}>
-          只处理本轮的修订，你原有的修订不受影响。也可以在 Word「审阅」选项卡中逐条接受或拒绝；修订保存在文档里，关闭面板也不会丢。
+          {t('只处理本轮的修订，你原有的修订不受影响。也可以在 Word「审阅」选项卡中逐条接受或拒绝；修订保存在文档里，关闭面板也不会丢。')}
         </div>
       )}
     </div>

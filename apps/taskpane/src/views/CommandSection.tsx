@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button, Field, Input, makeStyles, Switch, Text, Textarea, tokens } from '@fluentui/react-components';
 import { AddRegular, DeleteRegular, EditRegular } from '@fluentui/react-icons';
 import { updateSettings, useSettings } from '../state/settings';
+import { getLang, t } from '../i18n';
 import { builtinCommands, type SlashCommand } from '../state/commands';
 
 const useStyles = makeStyles({
@@ -33,7 +34,7 @@ export function CommandSection() {
   const save = (c: SlashCommand) =>
     updateSettings((st) => ({ ...st, customCommands: st.customCommands.map((x) => (x.id === c.id ? c : x)) }));
   const add = () => {
-    const c: SlashCommand = { id: crypto.randomUUID(), name: '新指令', aliases: [], description: '', prompt: '', autoSend: false };
+    const c: SlashCommand = { id: crypto.randomUUID(), name: t('新指令'), aliases: [], description: '', prompt: '', autoSend: false };
     updateSettings((st) => ({ ...st, customCommands: [...st.customCommands, c] }));
     setEditing(c.id);
   };
@@ -41,26 +42,27 @@ export function CommandSection() {
 
   return (
     <div className={s.section}>
-      <span className={s.h}>快捷指令</span>
-      <Text size={200}>在输入框开头输入 / 调出。自定义指令与内置同名时，以自定义为准。</Text>
+      <span className={s.h}>{t('快捷指令')}</span>
+      <Text size={200}>{t('在输入框开头输入 / 调出。自定义指令与内置同名时，以自定义为准。')}</Text>
       <div className={s.builtin}>
-        内置：{builtinCommands({ pubmed: settings.pubmed }).map((c) => `/${c.name}`).join('　')}
+        {t('内置：')}
+        {builtinCommands({ pubmed: settings.pubmed, lang: getLang() }).map((c) => `/${c.name}`).join('  ')}
       </div>
       {custom.map((c) => (
         <div key={c.id}>
           <div className={s.row}>
             <span className={s.name}>
               /{c.name}
-              <span className={s.sub}>{c.autoSend ? '直接执行' : '填入后补充'}</span>
+              <span className={s.sub}>{c.autoSend ? t('直接执行') : t('填入后补充')}</span>
             </span>
-            <Button size="small" appearance="subtle" icon={<EditRegular />} aria-label="编辑" onClick={() => setEditing(editing === c.id ? null : c.id)} />
-            <Button size="small" appearance="subtle" icon={<DeleteRegular />} aria-label="删除" onClick={() => remove(c.id)} />
+            <Button size="small" appearance="subtle" icon={<EditRegular />} aria-label={t('编辑')} onClick={() => setEditing(editing === c.id ? null : c.id)} />
+            <Button size="small" appearance="subtle" icon={<DeleteRegular />} aria-label={t('删除')} onClick={() => remove(c.id)} />
           </div>
           {editing === c.id && <CommandEditor cmd={c} onChange={save} />}
         </div>
       ))}
       <Button size="small" icon={<AddRegular />} onClick={add} style={{ alignSelf: 'flex-start' }}>
-        新建指令
+        {t('新建指令')}
       </Button>
     </div>
   );
@@ -70,19 +72,19 @@ function CommandEditor({ cmd: c, onChange }: { cmd: SlashCommand; onChange: (c: 
   const s = useStyles();
   return (
     <div className={s.editor}>
-      <Field label="名称（输入 / 后显示）">
+      <Field label={t('名称（输入 / 后显示）')}>
         <Input value={c.name} onChange={(_, d) => onChange({ ...c, name: d.value.replace(/\s/g, '') })} />
       </Field>
-      <Field label="别名（逗号分隔，建议填拼音首字母，如 kt）">
+      <Field label={t('别名（逗号分隔，建议填拼音首字母，如 kt）')}>
         <Input value={c.aliases.join(', ')} onChange={(_, d) => onChange({ ...c, aliases: d.value.split(/[,，]\s*/).filter(Boolean) })} />
       </Field>
-      <Field label="说明">
+      <Field label={t('说明')}>
         <Input value={c.description} onChange={(_, d) => onChange({ ...c, description: d.value })} />
       </Field>
-      <Field label="指令内容（发给 AI 的话）">
+      <Field label={t('指令内容（发给 AI 的话）')}>
         <Textarea value={c.prompt} onChange={(_, d) => onChange({ ...c, prompt: d.value })} resize="vertical" textarea={{ rows: 4 }} />
       </Field>
-      <Switch checked={c.autoSend} onChange={(_, d) => onChange({ ...c, autoSend: d.checked })} label="选中后直接执行（关闭则填入输入框，补充后再发送）" />
+      <Switch checked={c.autoSend} onChange={(_, d) => onChange({ ...c, autoSend: d.checked })} label={t('选中后直接执行（关闭则填入输入框，补充后再发送）')} />
     </div>
   );
 }

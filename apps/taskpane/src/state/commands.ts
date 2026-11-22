@@ -13,7 +13,14 @@ export interface SlashCommand {
   builtin?: boolean;
 }
 
-export function lintPrompt(pubmed: boolean): string {
+export function lintPrompt(pubmed: boolean, lang: 'zh' | 'en' = 'zh'): string {
+  if (lang === 'en') {
+    return (
+      'Check the whole deck against the current style profile. Fix only the formatting issues it reports (font, size, bold, off-slide, citation format); do not add, delete or rewrite content. For hints such as "too much white space", just list suggestions. ' +
+      (pubmed ? 'Verify each existing footer citation with verify_citation: correct wrong ones per PubMed; mark ones that cannot be found as "[to verify]" and tell me—do not replace them with other papers. ' : '') +
+      'Re-check after fixing, then list what you changed.'
+    );
+  }
   return (
     '按当前演示规范检查整套幻灯片，只修正检查发现的格式问题（字体、字号、加粗、超出页面、引用格式），不要新增、删除或改写内容；“留白较多”等提示只需列出建议，不要动手。' +
     (pubmed ? '已有的页脚引用逐条用 verify_citation 核对：写法有误的按 PubMed 更正，查不到的标注“[待核实]”并告诉我，不要自行替换成别的文献。' : '') +
@@ -26,8 +33,32 @@ const SEL = '当前选中的内容（没有选中时：PPT 为当前页，Word �
 const WORD = ['Word'];
 const XL = ['Excel'];
 
-export function builtinCommands(opts: { pubmed: boolean }): SlashCommand[] {
-  const c = (o: Omit<SlashCommand, 'builtin'>): SlashCommand => ({ ...o, builtin: true });
+// 英文界面下的名称、说明与指令（发给模型的指令也用英文，模型会用英文回复）
+const SEL_EN = 'the current selection (if nothing is selected: the current slide in PowerPoint, the paragraph at the cursor in Word)';
+const EN_CMDS: Record<string, { name: string; description: string; prompt: string }> = {
+  outline: { name: 'Outline to slides', description: 'Paste an outline; one slide per heading', prompt: 'Create slides from the outline below, one slide per top-level heading, using suitable layouts:\n' },
+  polish: { name: 'Polish', description: 'Polish the wording of the selection', prompt: `Polish the wording of ${SEL_EN}: more accurate, concise and professional; keep the meaning and the number of points; do not change formatting.` },
+  shorten: { name: 'Shorten', description: 'Remove redundancy and tighten', prompt: `Shorten ${SEL_EN}: remove redundant modifiers and repetition while keeping all key information; do not change formatting.` },
+  academic: { name: 'Academic polish', description: 'Polish for academic writing', prompt: `Polish ${SEL_EN} for academic writing: precise and consistent terminology, rigorous sentences, no colloquialisms; keep all data, statistics and citations; make only necessary edits.` },
+  logic: { name: 'Check logic', description: 'Find contradictions and inconsistencies; add comments', prompt: 'Read the whole document and find contradictions, inconsistent numbers or sample sizes, inconsistent terminology, and conclusions not supported by results. Do not edit; add comments at the relevant places with suggestions, then summarize them.' },
+  translate: { name: 'Translate', description: 'Translate the selection (Chinese ↔ English)', prompt: `Translate ${SEL_EN} into Chinese (or into English if it is Chinese), with accurate terminology, replacing the original.` },
+  terms: { name: 'Bilingual terms', description: 'Add English names and abbreviations at first mention', prompt: 'Check the whole document; at the first mention of each technical term add the English full name and abbreviation, e.g. "随机对照试验（Randomized Controlled Trial, RCT）". Only add annotations; change nothing else.' },
+  layout: { name: 'Check layout', description: 'Fix overflow, overlap and alignment on this slide', prompt: 'Check the layout of the current slide—text overflow, overlapping elements, alignment and white space—fix any problems, then explain what you changed.' },
+  table: { name: 'Comparison table', description: 'Insert a comparison table slide after this one', prompt: 'Insert a comparison table slide after the current slide, comparing: ' },
+  summary: { name: 'Summary slide', description: 'Add a summary slide at the end', prompt: 'Read the whole deck and append a "Summary" slide with 3–5 key points.' },
+  describe: { name: 'Descriptive stats', description: 'Descriptive statistics with Excel formulas', prompt: 'Run descriptive statistics on the current data: for numeric variables report n, missing, mean ± SD, median (IQR), min/max; for categorical variables report counts and percentages. Put the results on a new "Descriptive statistics" sheet, all computed with formulas.' },
+  compare: { name: 'Group comparison', description: 'Compare variables by a grouping variable', prompt: 'Compare the variables by the following grouping variable (new results sheet, formulas only, plus grouped box plots): ' },
+  chart: { name: 'Chart', description: 'Draw a suitable chart for given variables', prompt: 'Draw suitable charts for the following variables (on a new results sheet, with clear titles and axis units): ' },
+  pivot: { name: 'Pivot table', description: 'Create a pivot table for given fields', prompt: 'Create a pivot table: rows = , values = (average / count)' },
+  lint: { name: 'Style check', description: 'Check and fix formatting against the style profile', prompt: '' },
+  cite: { name: 'Verify citations', description: 'Verify existing citations on PubMed', prompt: 'Find all citations in the document and verify each with verify_citation: correct wrong ones per PubMed; mark ones that cannot be found as "[to verify]" and list them—do not replace them with other papers.' },
+};
+
+export function builtinCommands(opts: { pubmed: boolean; lang?: 'zh' | 'en' }): SlashCommand[] {
+  const c = (o: Omit<SlashCommand, 'builtin'>): SlashCommand => {
+    const en = opts.lang === 'en' ? EN_CMDS[o.id] : undefined;
+    return en ? { ...o, ...en, prompt: o.id === 'lint' ? lintPrompt(opts.pubmed, 'en') : en.prompt, builtin: true } : { ...o, builtin: true };
+  };
   return [
     c({ id: 'outline', name: '按大纲生成', aliases: ['dg', 'outline'], hosts: PPT, autoSend: false,
       description: '粘贴大纲，每个标题生成一页', prompt: '按下面的大纲生成幻灯片，每个一级标题一页，使用合适的版式：\n' }),
@@ -67,10 +98,10 @@ export function builtinCommands(opts: { pubmed: boolean }): SlashCommand[] {
 // 合并内置与自定义（同名时自定义覆盖），按宿主和前置条件过滤
 export function availableCommands(
   custom: SlashCommand[],
-  ctx: { host: string; hasProfile: boolean; pubmed: boolean },
+  ctx: { host: string; hasProfile: boolean; pubmed: boolean; lang?: 'zh' | 'en' },
 ): SlashCommand[] {
   const custNames = new Set(custom.map((c) => c.name));
-  return [...builtinCommands({ pubmed: ctx.pubmed }).filter((b) => !custNames.has(b.name)), ...custom].filter(
+  return [...builtinCommands({ pubmed: ctx.pubmed, lang: ctx.lang }).filter((b) => !custNames.has(b.name)), ...custom].filter(
     (c) =>
       (!c.hosts?.length || c.hosts.includes(ctx.host)) &&
       (c.requires !== 'profile' || ctx.hasProfile) &&

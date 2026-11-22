@@ -15,7 +15,7 @@ import { SEED_HEADER, seedTrial } from '../hosts/excel/seed';
 type Handler = (payload: any) => Promise<unknown> | unknown;
 
 export const devApi: Record<string, Handler> = {
-  ping: () => ({ host: Office.context?.host, time: new Date().toISOString() }),
+  ping: () => ({ host: Office.context?.host, time: new Date().toISOString(), officeLang: Office.context?.displayLanguage, contentLang: (Office.context as any)?.contentLanguage, navLang: navigator.language, navLangs: navigator.languages }),
   selftest: (times?: number) => runUndoSelfTest(times ?? 20),
   // 只读：整套幻灯片概况（每页形状类型、文本、字体、字号）
   deck: () =>
@@ -171,6 +171,12 @@ export const devApi: Record<string, Handler> = {
       await ctx.sync();
       return 'ok';
     }),
+  setLanguage: (l: 'auto' | 'zh' | 'en') => {
+    updateSettings({ language: l });
+    return { language: l };
+  },
+  // 只读：面板当前显示的文字（检查翻译）
+  uiText: () => document.body.innerText,
   settings: () => {
     const s = getSettings();
     return {

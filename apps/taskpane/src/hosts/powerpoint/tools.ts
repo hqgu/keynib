@@ -2,6 +2,7 @@
 // 约定：幻灯片用 1 起的序号 slide 指代；形状用 read_slide 返回的 shapeId 指代；单位为磅（pt）。
 
 import type { ToolDef } from '@keynib/core';
+import { m, t } from '../../i18n';
 import type { PptChangeset } from './changeset';
 import { lintSlide, profileFontFor, type DeckProfile, type LintIssue } from './profile';
 
@@ -119,14 +120,14 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
   return [
     {
       name: 'lint_deck',
-      label: '规范检查',
+      label: t('规范检查'),
       permission: 'R',
       description: '按当前演示规范检查幻灯片：字体、最小字号、标题字号与加粗、超出页面、页脚引用格式、留白。slides 省略则检查全部。',
       parameters: { type: 'object', properties: { slides: { type: 'array', items: { type: 'integer' }, description: '要检查的页序号，省略为全部' } } },
       run: ({ slides }: { slides?: number[] }) =>
         PowerPoint.run(async (ctx) => {
           const profile = getProfile();
-          if (!profile) return { text: '当前未选择演示规范，无法检查。请让用户在输入框旁选择规范。', summary: '未选择规范' };
+          if (!profile) return { text: m('当前未选择演示规范，无法检查。请让用户在输入框旁选择规范。'), summary: t('未选择规范') };
           const all = await getSlides(ctx);
           const nums = slides?.length ? slides : all.map((_, i) => i + 1);
           const issues: LintIssue[] = [];
@@ -138,13 +139,15 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           const warns = issues.filter((i) => i.severity === 'warn').length;
           return {
             text: json({ profile: profile.name, checked: nums.length, errors, warns, issues }),
-            summary: issues.length ? `${errors} 个错误，${warns} 个警告，${issues.length - errors - warns} 条提示` : `${nums.length} 页全部符合`,
+            summary: issues.length
+              ? t('{e} 个错误，{w} 个警告，{i} 条提示', { e: errors, w: warns, i: issues.length - errors - warns })
+              : t('{n} 页全部符合', { n: nums.length }),
           };
         }),
     },
     {
       name: 'apply_profile',
-      label: '套用规范',
+      label: t('套用规范'),
       permission: 'W',
       description: '把当前演示规范的字体、标题字号与加粗、最小字号一次性套用到指定页的所有文字（比逐个 format_shape 快）。setBodySize=true 时正文统一为规范正文字号。slides 省略为全部。',
       parameters: {
@@ -173,12 +176,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
             }
           }
           await ctx.sync();
-          return { text: json({ slides: nums.length, shapes: changed }), summary: `${nums.length} 页 ${changed} 处文字` };
+          return { text: json({ slides: nums.length, shapes: changed }), summary: t('{n} 页 {c} 处文字', { n: nums.length, c: changed }) };
         }),
     },
     {
       name: 'list_slides',
-      label: '浏览幻灯片',
+      label: t('浏览幻灯片'),
       permission: 'R',
       description: '列出所有幻灯片：序号、版式、标题及形状数量。改动前先调用以了解整体结构。',
       parameters: { type: 'object', properties: {} },
@@ -193,12 +196,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
             const titled = shapes.find((s) => /title|标题/i.test(s.name) && s.text) ?? shapes.find((s) => s.text);
             out.push({ slide: i + 1, layout: slides[i].layout.name, title: titled?.text?.slice(0, 60) ?? '', shapes: shapes.length });
           }
-          return { text: json(out), summary: `共 ${slides.length} 页` };
+          return { text: json(out), summary: t('共 {n} 页', { n: slides.length }) };
         }),
     },
     {
       name: 'read_slide',
-      label: '读取幻灯片',
+      label: t('读取幻灯片'),
       permission: 'R',
       description: '读取一页的全部形状：shapeId、名称、类型、位置尺寸（磅）、文本、字体、表格内容。修改形状前必须先读取以获得 shapeId。',
       parameters: { type: 'object', properties: { slide: { type: 'integer', description: '序号，从 1 开始' } }, required: ['slide'] },
@@ -208,12 +211,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           s.layout.load('name');
           await ctx.sync();
           const shapes = await readShapes(ctx, s);
-          return { text: json({ slide, layout: s.layout.name, shapes }), summary: `第 ${slide} 页，${shapes.length} 个形状` };
+          return { text: json({ slide, layout: s.layout.name, shapes }), summary: t('第 {n} 页，{s} 个形状', { n: slide, s: shapes.length }) };
         }),
     },
     {
       name: 'get_selection',
-      label: '读取当前选择',
+      label: t('读取当前选择'),
       permission: 'R',
       description: '获取用户当前选中的幻灯片序号和形状 shapeId。用户说"这页""选中的"时调用。',
       parameters: { type: 'object', properties: {} },
@@ -228,13 +231,13 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           const slideNums = sel.items.map((s) => all.findIndex((a) => a.id === s.id) + 1);
           return {
             text: json({ slides: slideNums, shapes: shapes.items.map((s) => ({ id: s.id, name: s.name })) }),
-            summary: `选中第 ${slideNums.join('、') || '-'} 页`,
+            summary: t('选中第 {list} 页', { list: slideNums.join(', ') || '-' }),
           };
         }),
     },
     {
       name: 'get_layouts',
-      label: '读取版式',
+      label: t('读取版式'),
       permission: 'R',
       description: '列出母版及其版式（layoutId、名称、占位符）。新建幻灯片前调用，优先选用合适版式而不是空白页。',
       parameters: { type: 'object', properties: {} },
@@ -255,12 +258,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
             }
             out.push({ masterId: m.id, name: m.name, layouts });
           }
-          return { text: json(out), summary: `${out.reduce((n, m) => n + m.layouts.length, 0)} 个版式` };
+          return { text: json(out), summary: t('{n} 个版式', { n: out.reduce((n, x) => n + x.layouts.length, 0) }) };
         }),
     },
     {
       name: 'screenshot_slide',
-      label: '查看幻灯片截图',
+      label: t('查看幻灯片截图'),
       permission: 'R',
       needsVision: true,
       description: '获取一页的渲染截图，用于检查排版：文字溢出、重叠、留白、对齐。完成一批修改后建议调用。',
@@ -270,12 +273,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           const s = await slideAt(ctx, slide);
           const img = s.getImageAsBase64({ width: 960 });
           await ctx.sync();
-          return { text: `第 ${slide} 页截图如下。`, images: [{ mediaType: 'image/png', data: img.value }], summary: `第 ${slide} 页截图` };
+          return { text: m('第 {n} 页截图如下。').replace('{n}', String(slide)), images: [{ mediaType: 'image/png', data: img.value }], summary: t('第 {n} 页截图', { n: slide }) };
         }),
     },
     {
       name: 'add_slide',
-      label: '新建幻灯片',
+      label: t('新建幻灯片'),
       permission: 'W',
       description: '新建一页。可指定 layoutId（来自 get_layouts）与插入位置 position（新页的序号，默认放在最后）。返回新页的序号和占位符 shapeId，之后用 set_text 填写。',
       parameters: {
@@ -301,14 +304,14 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           const shapes = await readShapes(ctx, slide, false);
           return {
             text: json({ slide: n, placeholders: shapes.map(({ id, name, left, top, width, height }) => ({ id, name, left, top, width, height })) }),
-            summary: `新建第 ${n} 页`,
+            summary: t('新建第 {n} 页', { n }),
           };
         });
       },
     },
     {
       name: 'set_text',
-      label: '修改文字',
+      label: t('修改文字'),
       permission: 'W',
       description: '替换某个形状（文本框 / 占位符 / 形状）的全部文字。多段用 \\n 分隔。可同时设置字体。',
       parameters: {
@@ -324,12 +327,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           tr.text = text;
           applyFont(tr.font, font);
           await ctx.sync();
-          return { text: 'ok', summary: `第 ${slide} 页：${text.replace(/\n/g, ' ').slice(0, 30)}` };
+          return { text: 'ok', summary: t('第 {n} 页：{text}', { n: slide, text: text.replace(/\n/g, ' ').slice(0, 30) }) };
         }),
     },
     {
       name: 'format_shape',
-      label: '设置格式',
+      label: t('设置格式'),
       permission: 'W',
       description: '设置形状的字体（作用于全部文字）、填充色、位置和尺寸。只传需要修改的字段。',
       parameters: {
@@ -356,12 +359,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           if (a.width !== undefined) shape.width = a.width;
           if (a.height !== undefined) shape.height = a.height;
           await ctx.sync();
-          return { text: 'ok', summary: `第 ${a.slide} 页：调整格式` };
+          return { text: 'ok', summary: t('第 {n} 页：调整格式', { n: a.slide }) };
         }),
     },
     {
       name: 'add_textbox',
-      label: '添加文本框',
+      label: t('添加文本框'),
       permission: 'W',
       description: '在指定页添加文本框。位置尺寸单位为磅；16:9 页面通常为 960×540。',
       parameters: {
@@ -377,12 +380,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           applyFont(tb.textFrame.textRange.font, a.font);
           tb.load('id');
           await ctx.sync();
-          return { text: json({ shapeId: tb.id }), summary: `第 ${a.slide} 页：加文本框` };
+          return { text: json({ shapeId: tb.id }), summary: t('第 {n} 页：加文本框', { n: a.slide }) };
         }),
     },
     {
       name: 'add_shape',
-      label: '添加形状',
+      label: t('添加形状'),
       permission: 'W',
       description: '添加几何形状（如 Rectangle、RoundRectangle、Ellipse、RightArrow、Chevron、Pentagon），可带文字和填充色。',
       parameters: {
@@ -414,12 +417,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           }
           sh.load('id');
           await ctx.sync();
-          return { text: json({ shapeId: sh.id }), summary: `第 ${a.slide} 页：加${a.shape}` };
+          return { text: json({ shapeId: sh.id }), summary: t('第 {n} 页：加 {shape}', { n: a.slide, shape: a.shape }) };
         }),
     },
     {
       name: 'add_table',
-      label: '添加表格',
+      label: t('添加表格'),
       permission: 'W',
       description: '在指定页添加表格。values 为二维字符串数组，第一行通常是表头。',
       parameters: {
@@ -449,12 +452,12 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           });
           sh.load('id');
           await ctx.sync();
-          return { text: json({ shapeId: sh.id }), summary: `第 ${a.slide} 页：${rows}×${cols} 表格` };
+          return { text: json({ shapeId: sh.id }), summary: t('第 {n} 页：{r}×{c} 表格', { n: a.slide, r: rows, c: cols }) };
         }),
     },
     {
       name: 'move_slide',
-      label: '移动幻灯片',
+      label: t('移动幻灯片'),
       permission: 'W',
       description: '把第 slide 页移动到第 to 页的位置。',
       parameters: { type: 'object', properties: { slide: { type: 'integer' }, to: { type: 'integer' } }, required: ['slide', 'to'] },
@@ -464,39 +467,39 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           const s = await slideAt(ctx, slide);
           s.moveTo(to - 1);
           await ctx.sync();
-          return { text: 'ok', summary: `第 ${slide} 页 → 第 ${to} 页` };
+          return { text: 'ok', summary: t('第 {n} 页 → 第 {to} 页', { n: slide, to }) };
         }),
     },
     {
       name: 'delete_shape',
-      label: '删除形状',
+      label: t('删除形状'),
       permission: 'D',
       description: '删除某页上的一个形状。需要用户确认。',
       parameters: { type: 'object', properties: { slide: { type: 'integer' }, shapeId: { type: 'string' } }, required: ['slide', 'shapeId'] },
-      describe: (a: { slide: number; shapeId: string }) => `删除第 ${a.slide} 页上的形状 ${a.shapeId}`,
+      describe: (a: { slide: number; shapeId: string }) => t('删除第 {n} 页上的形状 {id}', { n: a.slide, id: a.shapeId }),
       targets: (a: { slide: number }) => [a.slide],
       run: ({ slide, shapeId }: { slide: number; shapeId: string }) =>
         PowerPoint.run(async (ctx) => {
           const s = await slideAt(ctx, slide);
           s.shapes.getItem(shapeId).delete();
           await ctx.sync();
-          return { text: 'ok', summary: `第 ${slide} 页：删除形状` };
+          return { text: 'ok', summary: t('第 {n} 页：删除形状', { n: slide }) };
         }),
     },
     {
       name: 'delete_slide',
-      label: '删除幻灯片',
+      label: t('删除幻灯片'),
       permission: 'D',
       description: '删除一页。需要用户确认。',
       parameters: { type: 'object', properties: { slide: { type: 'integer' } }, required: ['slide'] },
-      describe: (a: { slide: number }) => `删除第 ${a.slide} 页`,
+      describe: (a: { slide: number }) => t('删除第 {n} 页', { n: a.slide }),
       targets: (a: { slide: number }) => [a.slide],
       run: ({ slide }: { slide: number }) =>
         PowerPoint.run(async (ctx) => {
           const s = await slideAt(ctx, slide);
           s.delete();
           await ctx.sync();
-          return { text: 'ok', summary: `删除第 ${slide} 页` };
+          return { text: 'ok', summary: t('删除第 {n} 页', { n: slide }) };
         }),
     },
   ];

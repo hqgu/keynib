@@ -18,6 +18,7 @@ import { createPptTools, pptContext } from '../hosts/powerpoint/tools';
 import { pptSystemPrompt } from '../hosts/powerpoint/prompt';
 import { ChangeCard, ConfirmCard, Reasoning, RevisionCard, StepList, type StepView } from '../components/Cards';
 import { Markdown } from '../components/Markdown';
+import { getLang, m, t } from '../i18n';
 import { SlashMenu } from '../components/SlashMenu';
 import { availableCommands, filterCommands, lintPrompt, slashQuery, type SlashCommand } from '../state/commands';
 import { currentHost } from '../probes/env';
@@ -55,11 +56,11 @@ const useStyles = makeStyles({
   notice: { fontSize: '12px', color: tokens.colorNeutralForeground3, textAlign: 'center', margin: '6px 0' },
 });
 
-const PPT_SUGGESTIONS = [
-  '按下面的大纲生成一套幻灯片，每个一级标题一页：\n',
-  '把所有幻灯片的正文统一为微软雅黑 20 号，标题 36 号加粗',
-  '检查当前这一页的排版问题并修正',
-  '在当前页后面插入一页三列对比表：方案 / 优点 / 缺点',
+const pptSuggestions = () => [
+  t('按下面的大纲生成一套幻灯片，每个一级标题一页：') + '\n',
+  t('把所有幻灯片的正文统一为微软雅黑 20 号，标题 36 号加粗'),
+  t('检查当前这一页的排版问题并修正'),
+  t('在当前页后面插入一页三列对比表：方案 / 优点 / 缺点'),
 ];
 
 interface Props {
@@ -106,15 +107,15 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
   }, [changesets, messages, running]);
 
   const toolLabels = useMemo(
-    () => Object.fromEntries([...createPptTools(() => new PptChangeset()), ...createWordTools(), ...createExcelTools(() => new ExcelChangeset()), ...pubmedTools()].map((t) => [t.name, t.label])),
-    [],
+    () => Object.fromEntries([...createPptTools(() => new PptChangeset()), ...createWordTools(), ...createExcelTools(() => new ExcelChangeset()), ...pubmedTools()].map((x) => [x.name, t(x.label)])),
+    [settings.language],
   );
 
   async function send(text: string): Promise<unknown> {
-    if (!text.trim() || running) return { error: running ? '正在运行' : '空消息' };
+    if (!text.trim() || running) return { error: running ? 'running' : 'empty' };
     if (!active) {
       onOpenSettings();
-      return { error: '未配置模型' };
+      return { error: 'no model' };
     }
     setError('');
     setInput('');
@@ -126,7 +127,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
-    const doc = await currentDoc().catch(() => ({ docId: 'unsaved', docName: '未保存的文档' }));
+    const doc = await currentDoc().catch(() => ({ docId: 'unsaved', docName: t('未保存的文档') }));
     const sess: Session =
       session ?? {
         id: newSessionId(),
@@ -144,26 +145,26 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
 
     let cs: PptChangeset | WordRevisions | ExcelChangeset | null = null;
     let tools: ToolDef[] = [];
-    let system = '你是"妙笔 Keynib"，一个 Office 助手。当前宿主暂未开放编辑工具，请直接用文字回答。';
+    let system = m('你是"妙笔 Keynib"，一个 Office 助手。当前宿主暂未开放编辑工具，请直接用文字回答。');
     if (isPpt) {
       const ppt = new PptChangeset();
       cs = ppt;
       tools = createPptTools(() => ppt, () => activeProfile(getSettings()));
       if (settings.pubmed) tools = [...tools, ...pubmedTools()];
-      const ctx = await pptContext().catch(() => '（无法读取文档概况）');
+      const ctx = await pptContext().catch(() => m('（无法读取文档概况）'));
       system = pptSystemPrompt(ctx, active.cfg.vision, eventsRef.current, activeProfile(settings), settings.pubmed);
       eventsRef.current = [];
     } else if (isExcel) {
       const xl = new ExcelChangeset();
       cs = xl;
       tools = createExcelTools(() => xl);
-      const ctx = await excelContext().catch(() => '（无法读取工作簿概况）');
+      const ctx = await excelContext().catch(() => m('（无法读取工作簿概况）'));
       system = excelSystemPrompt(ctx, eventsRef.current);
       eventsRef.current = [];
     } else if (isWord) {
       tools = createWordTools();
       if (settings.pubmed) tools = [...tools, ...pubmedTools()];
-      const ctx = await wordContext().catch(() => '（无法读取文档概况）');
+      const ctx = await wordContext().catch(() => m('（无法读取文档概况）'));
       system = wordSystemPrompt(ctx, eventsRef.current, settings.pubmed);
       eventsRef.current = [];
       const rev = new WordRevisions();
@@ -172,8 +173,8 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
         cs = rev;
       } catch (e: any) {
         setRunning(false);
-        setError(`无法开启修订模式：${e?.message ?? e}`);
-        return { error: '无法开启修订模式' };
+        setError(`${t('无法开启修订模式：')}${e?.message ?? e}`);
+        return { error: 'tracking' };
       }
     }
     if (cs) setChangesets((c) => ({ ...c, [turnIndex]: cs! }));
@@ -202,7 +203,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
           setLive({ text: '', reasoning: '' });
         },
         onToolStart: (call, tool) =>
-          setSteps((st) => ({ ...st, [call.id]: { id: call.id, label: tool?.label ?? call.name, status: 'running', args: call.arguments } })),
+          setSteps((st) => ({ ...st, [call.id]: { id: call.id, label: tool ? t(tool.label) : call.name, status: 'running', args: call.arguments } })),
         onToolEnd: (call, msg, meta) => {
           added = [...added, msg];
           setMessages([...history, ...added]);
@@ -236,8 +237,9 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
     setRunning(false);
     setConfirm(null);
     abortRef.current = null;
-    if (result.error) setError(result.error);
-    else if (result.stoppedBy === 'maxSteps') setError(`已达到单轮最多 ${settings.maxSteps} 步，回复"继续"可接着做。`);
+    if (result.stoppedBy === 'errors') setError(t('连续 3 步操作全部失败，已暂停。可以补充说明后让我继续。'));
+    else if (result.error) setError(result.error);
+    else if (result.stoppedBy === 'maxSteps') setError(t('已达到单轮最多 {n} 步，回复"继续"可接着做。', { n: settings.maxSteps }));
 
     const finalMessages = [...history, ...result.messages];
     setMessages(finalMessages);
@@ -261,13 +263,13 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
     import('../dev/bridge').then(({ devApi }) => {
       devApi.chat = (text: string) => send(text);
       devApi.undoLast = async () => {
-        if (lastChangeTurn === undefined) return '没有可撤销的轮次';
+        if (lastChangeTurn === undefined) return 'nothing to undo';
         await undoTurn(lastChangeTurn);
         return 'ok';
       };
-      devApi.slashMenu = (q: string) => filterCommands(commands, q).map((c) => `/${c.name}（${c.autoSend ? '直接执行' : '填入'}）`);
+      devApi.slashMenu = (q: string) => filterCommands(commands, q).map((c) => `/${c.name} (${c.autoSend ? 'auto' : 'fill'})`);
       devApi.acceptLast = async () => {
-        if (lastChangeTurn === undefined) return '没有待处理的轮次';
+        if (lastChangeTurn === undefined) return 'nothing pending';
         await acceptTurn(lastChangeTurn);
         return 'ok';
       };
@@ -282,8 +284,8 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
     const what = req?.role === 'user' ? `“${req.content.replace(/\s+/g, ' ').slice(0, 30)}”` : '';
     eventsRef.current.push(
       cs instanceof WordRevisions
-        ? `用户拒绝了请求${what}那一轮的全部修订，相关段落已恢复原文。`
-        : `用户撤销了请求${what}那一轮的全部修改，文档已恢复到该轮之前的状态。`,
+        ? m('用户拒绝了请求{what}那一轮的全部修订，相关段落已恢复原文。').replace('{what}', what)
+        : m('用户撤销了请求{what}那一轮的全部修改，文档已恢复到该轮之前的状态。').replace('{what}', what),
     );
     setChangesets((c) => ({ ...c }));
   }
@@ -304,8 +306,8 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
 
   // "/" 快捷指令
   const commands = useMemo(
-    () => availableCommands(settings.customCommands, { host, hasProfile: !!settings.activeProfileId, pubmed: settings.pubmed }),
-    [settings.customCommands, settings.activeProfileId, settings.pubmed, host],
+    () => availableCommands(settings.customCommands, { host, hasProfile: !!settings.activeProfileId, pubmed: settings.pubmed, lang: getLang() }),
+    [settings.customCommands, settings.activeProfileId, settings.pubmed, settings.language, host],
   );
   const query = slashQuery(input);
   const menuItems = query !== null && !menuClosed ? filterCommands(commands, query) : null;
@@ -408,8 +410,8 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
           <ChangeCard
             key={`cs${start}`}
             label={[
-              sum.createdSheets.length ? `新建 ${sum.createdSheets.map((n) => `「${n}」`).join('')}` : '',
-              sum.overwritten.length ? `修改原表 ${sum.overwritten.join('、')}` : '',
+              sum.createdSheets.length ? t('新建 {list}', { list: sum.createdSheets.map((n) => `「${n}」`).join('') }) : '',
+              sum.overwritten.length ? t('修改原表 {list}', { list: sum.overwritten.join(', ') }) : '',
             ].filter(Boolean).join(' · ')}
             undone={cs.undone}
             canUndo={start === lastChangeTurn && !running}
@@ -437,7 +439,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
       <div className={s.scroll} ref={scrollRef}>
         {!isPpt && !isWord && !isExcel && host !== 'Unknown' && (
           <MessageBar intent="info">
-            <MessageBarBody>{host} 的编辑工具将在后续版本开放，目前只能对话。</MessageBarBody>
+            <MessageBarBody>{t('{host} 的编辑工具将在后续版本开放，目前只能对话。', { host })}</MessageBarBody>
           </MessageBar>
         )}
         {messages.length === 0 && (
@@ -445,12 +447,15 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
             {!active && (
               <MessageBar intent="warning">
                 <MessageBarBody>
-                  还没有配置模型。<Button size="small" appearance="transparent" onClick={onOpenSettings}>去设置</Button>
+                  {t('还没有配置模型。')}
+                  <Button size="small" appearance="transparent" onClick={onOpenSettings}>
+                    {t('去设置')}
+                  </Button>
                 </MessageBarBody>
               </MessageBar>
             )}
             {isPpt &&
-              PPT_SUGGESTIONS.map((t) => (
+              pptSuggestions().map((t) => (
                 <button key={t} className={s.suggestion} onClick={() => setInput(t)}>
                   {t.trim()}
                 </button>
@@ -464,7 +469,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
             {live.text && <Markdown text={live.text} />}
           </div>
         )}
-        {running && !live?.text && !confirm && <div className={s.notice}>妙笔正在工作…</div>}
+        {running && !live?.text && !confirm && <div className={s.notice}>{t('妙笔正在工作…')}</div>}
         {confirm && (
           <ConfirmCard
             description={confirm.description}
@@ -491,7 +496,15 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
             setMenuClosed(false);
           }}
           onKeyDown={onKey}
-          placeholder={isPpt ? '告诉妙笔要对幻灯片做什么… 输入 / 调出快捷指令' : isWord ? '告诉妙笔要怎么改这篇文档… 输入 / 调出快捷指令' : isExcel ? '告诉妙笔要分析什么、画什么图… 输入 / 调出快捷指令' : '输入问题… 输入 / 调出快捷指令'}
+          placeholder={
+            isPpt
+              ? t('告诉妙笔要对幻灯片做什么… 输入 / 调出快捷指令')
+              : isWord
+                ? t('告诉妙笔要怎么改这篇文档… 输入 / 调出快捷指令')
+                : isExcel
+                  ? t('告诉妙笔要分析什么、画什么图… 输入 / 调出快捷指令')
+                  : t('输入问题… 输入 / 调出快捷指令')
+          }
           resize="vertical"
           textarea={{ rows: 3, ref: inputRef }}
           aria-autocomplete="list"
@@ -502,36 +515,36 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
             size="small"
             value={settings.mode}
             onChange={(_, d) => updateSettings({ mode: d.value as 'auto' | 'confirm' })}
-            aria-label="执行模式"
+            aria-label={t('执行模式')}
           >
-            <option value="auto">自动执行</option>
-            <option value="confirm">每步确认</option>
+            <option value="auto">{t('自动执行')}</option>
+            <option value="confirm">{t('每步确认')}</option>
           </Select>
           {isPpt && (
             <Select
               size="small"
               value={settings.activeProfileId ?? ''}
               onChange={(_, d) => updateSettings({ activeProfileId: d.value || null })}
-              aria-label="演示规范"
-              title="演示规范：妙笔会按所选规范写作和检查"
+              aria-label={t('演示规范')}
+              title={t('演示规范：妙笔会按所选规范写作和检查')}
             >
-              <option value="">无规范</option>
+              <option value="">{t('无规范')}</option>
               {settings.profiles.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </Select>
           )}
           {isPpt && settings.activeProfileId && !running && (
-            <Button size="small" appearance="subtle" onClick={() => send(lintPrompt(settings.pubmed))}>
-              规范检查
+            <Button size="small" appearance="subtle" onClick={() => send(lintPrompt(settings.pubmed, getLang()))}>
+              {t('规范检查')}
             </Button>
           )}
           <span className={s.meta}>{totalTokens > 0 ? `≈ ${(totalTokens / 1000).toFixed(1)}k tokens` : ''}</span>
           {running ? (
-            <Button size="small" icon={<StopFilled />} onClick={stop}>停止</Button>
+            <Button size="small" icon={<StopFilled />} onClick={stop}>{t('停止')}</Button>
           ) : (
             <Button size="small" appearance="primary" icon={<SendFilled />} disabled={!input.trim()} onClick={() => send(input)}>
-              发送
+              {t('发送')}
             </Button>
           )}
         </div>

@@ -6,6 +6,9 @@ import { PROVIDER_PRESETS, type Protocol } from '@keynib/providers';
 import type { RunMode } from '@keynib/core';
 import { DEFAULT_PROFILE, type DeckProfile } from '../hosts/powerpoint/profile';
 import type { SlashCommand } from './commands';
+import { resolveLang, setLang, t, type LangSetting } from '../i18n';
+import { setProviderLang } from '@keynib/providers';
+import { setCoreLang } from '@keynib/core';
 
 export interface ProviderConfig {
   apiKey: string;
@@ -27,6 +30,7 @@ export interface Settings {
   activeProfileId: string | null;
   pubmed: boolean; // 允许联网到 PubMed 检索 / 核对文献（只发送检索词）
   customCommands: SlashCommand[]; // 自定义快捷指令
+  language: LangSetting; // 界面语言：auto 跟随 Office
 }
 
 export const CUSTOM_ID = 'custom';
@@ -42,6 +46,7 @@ const defaults: Settings = {
   activeProfileId: null,
   pubmed: false,
   customCommands: [],
+  language: 'auto',
 };
 
 export function activeProfile(s: Settings): DeckProfile | null {
@@ -49,7 +54,7 @@ export function activeProfile(s: Settings): DeckProfile | null {
 }
 
 export function providerMeta(id: string): { name: string; vendor: string; protocol: Protocol; keyUrl?: string } {
-  if (id === CUSTOM_ID) return { name: '自定义', vendor: 'OpenAI 兼容端点', protocol: 'openai' };
+  if (id === CUSTOM_ID) return { name: t('自定义'), vendor: t('OpenAI 兼容端点'), protocol: 'openai' };
   const p = PROVIDER_PRESETS.find((x) => x.id === id)!;
   return { name: p.name, vendor: p.vendor, protocol: p.protocol, keyUrl: p.keyUrl };
 }
@@ -72,6 +77,15 @@ function load(): Settings {
 let state: Settings = load();
 const listeners = new Set<() => void>();
 
+// 界面语言与厂商错误提示语言跟随设置
+function applyLang() {
+  const l = resolveLang(state.language);
+  setLang(l);
+  setProviderLang(l);
+  setCoreLang(l);
+}
+applyLang();
+
 function persist() {
   const toSave: Settings =
     state.keyStorage === 'session'
@@ -93,6 +107,7 @@ export function getSettings() {
 
 export function updateSettings(patch: Partial<Settings> | ((s: Settings) => Settings)) {
   state = typeof patch === 'function' ? patch(state) : { ...state, ...patch };
+  applyLang();
   persist();
   listeners.forEach((l) => l());
 }
@@ -163,7 +178,7 @@ export async function exportConfigCode(includeKeys: boolean, passphrase?: string
   };
   const data = enc.encode(JSON.stringify(payload));
   if (!includeKeys) return `KEYNIB1.plain.${b64(data)}`;
-  if (!passphrase) throw new Error('包含 Key 时必须设置口令');
+  if (!passphrase) throw new Error(t('包含 Key 时必须设置口令'));
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(passphrase, salt);
@@ -177,20 +192,20 @@ export function configCodeNeedsPassphrase(code: string) {
 
 export async function importConfigCode(code: string, passphrase?: string): Promise<void> {
   const parts = code.trim().split('.');
-  if (parts[0] !== 'KEYNIB1') throw new Error('不是有效的配置码');
+  if (parts[0] !== 'KEYNIB1') throw new Error(t('不是有效的配置码'));
   let json: string;
   if (parts[1] === 'plain') {
     json = dec.decode(unb64(parts[2]));
   } else if (parts[1] === 'enc') {
-    if (!passphrase) throw new Error('请输入口令');
+    if (!passphrase) throw new Error(t('请输入口令'));
     try {
       const key = await deriveKey(passphrase, unb64(parts[2]));
       json = dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(parts[3]) as BufferSource }, key, unb64(parts[4]) as BufferSource));
     } catch {
-      throw new Error('口令错误或配置码已损坏');
+      throw new Error(t('口令错误或配置码已损坏'));
     }
   } else {
-    throw new Error('不是有效的配置码');
+    throw new Error(t('不是有效的配置码'));
   }
   const incoming = JSON.parse(json) as Settings;
   // 合并：导入的非空 Key 覆盖本地，空 Key 保留本地已有的

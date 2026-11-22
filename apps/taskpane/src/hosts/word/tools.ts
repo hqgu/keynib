@@ -2,6 +2,7 @@
 // 段落用 1 起的序号 paragraph 指代（含空段落与表格内段落）；修改前须带上该段开头文字 oldStart 作校验，防止按过时序号误改。
 
 import type { ToolDef } from '@keynib/core';
+import { m, t } from '../../i18n';
 import { alignSentences, escapeWordSearch, hunkCandidates, minimalHunk, SENTENCE_MARKS, splitSentences } from './diff';
 
 const json = (v: unknown) => JSON.stringify(v);
@@ -109,7 +110,7 @@ export function createWordTools(): ToolDef[] {
   return [
     {
       name: 'get_outline',
-      label: '读取大纲',
+      label: t('读取大纲'),
       permission: 'R',
       description: '读取文档概况：段落总数、字数，以及各级标题及其段落序号。先调用它了解结构。',
       parameters: { type: 'object', properties: {} },
@@ -120,12 +121,12 @@ export function createWordTools(): ToolDef[] {
             .map((p, i) => ({ paragraph: i + 1, style: p.style, text: clip(p.text.trim(), 60) }))
             .filter((x) => /heading|标题|title/i.test(x.style));
           const chars = items.reduce((n, p) => n + p.text.length, 0);
-          return { text: json({ paragraphs: items.length, chars, headings }), summary: `${items.length} 段，${headings.length} 个标题` };
+          return { text: json({ paragraphs: items.length, chars, headings }), summary: t('{n} 段，{h} 个标题', { n: items.length, h: headings.length }) };
         }),
     },
     {
       name: 'read_paragraphs',
-      label: '读取段落',
+      label: t('读取段落'),
       permission: 'R',
       description: '读取第 from 到 to 段（含）的序号、样式和全文。一次最多 60 段；长文档请分批读取。修改前必须先读取。',
       parameters: { type: 'object', properties: { from: { type: 'integer' }, to: { type: 'integer' } }, required: ['from', 'to'] },
@@ -139,12 +140,12 @@ export function createWordTools(): ToolDef[] {
             const p = items[i - 1];
             out.push({ paragraph: i, style: p.style, inTable: p.tableNestingLevel > 0 || undefined, list: p.isListItem || undefined, text: stripCr(p.text) });
           }
-          return { text: json({ total: items.length, paragraphs: out }), summary: `第 ${a}–${b} 段` };
+          return { text: json({ total: items.length, paragraphs: out }), summary: t('第 {a}–{b} 段', { a, b }) };
         }),
     },
     {
       name: 'get_selection',
-      label: '读取当前选择',
+      label: t('读取当前选择'),
       permission: 'R',
       description: '获取用户当前选中的文字及其所在段落序号。用户说"这段""选中的"时调用。没有选中时返回光标所在段落。',
       parameters: { type: 'object', properties: {} },
@@ -164,13 +165,13 @@ export function createWordTools(): ToolDef[] {
           const b = cmpLast.findIndex((c) => c.value === 'Equal') + 1;
           return {
             text: json({ selectedText: clip(sel.text, 2000), paragraphs: a ? [a, b || a] : [] }),
-            summary: sel.text ? `选中 ${sel.text.length} 字（第 ${a}–${b} 段）` : `光标在第 ${a} 段`,
+            summary: sel.text ? t('选中 {n} 字（第 {a}–{b} 段）', { n: sel.text.length, a, b }) : t('光标在第 {a} 段', { a }),
           };
         }),
     },
     {
       name: 'search_text',
-      label: '查找',
+      label: t('查找'),
       permission: 'R',
       description: '在全文查找文字（≤ 255 字，区分大小写），返回命中的段落序号和上下文。',
       parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
@@ -190,12 +191,12 @@ export function createWordTools(): ToolDef[] {
             const at = t.indexOf(query);
             return { paragraph: idx || null, context: clip(t.slice(Math.max(0, at - 30), at + query.length + 30), 100) };
           });
-          return { text: json({ count: hits.items.length, hits: out }), summary: `${hits.items.length} 处` };
+          return { text: json({ count: hits.items.length, hits: out }), summary: t('{n} 处', { n: hits.items.length }) };
         }),
     },
     {
       name: 'edit_paragraph',
-      label: '修改段落',
+      label: t('修改段落'),
       permission: 'W',
       description:
         '把第 paragraph 段改为 newText（给出修改后的完整段落文字）。系统会自动只把真正改动的词句标为修订。oldStart 填该段当前开头的 5–15 个字用于校验。只改需要改的地方，保持原文其余部分一字不差。',
@@ -210,13 +211,13 @@ export function createWordTools(): ToolDef[] {
           const p = check(items, paragraph, oldStart);
           if (p.tableNestingLevel > 0) throw new Error('表格内的段落暂不支持用此工具修改');
           const stats = await editParagraph(ctx, p, newText.replace(/\r?\n/g, ' ').trim());
-          const how = stats.paragraph ? '整段' : stats.sentence ? `${stats.phrase} 处词句、${stats.sentence} 句` : `${stats.phrase} 处词句`;
-          return { text: json({ ok: true, granularity: stats }), summary: `第 ${paragraph} 段：${stats.phrase + stats.sentence + stats.paragraph ? how : '无变化'}` };
+          const how = stats.paragraph ? t('整段') : stats.sentence ? t('{p} 处词句、{s} 句', { p: stats.phrase, s: stats.sentence }) : t('{p} 处词句', { p: stats.phrase });
+          return { text: json({ ok: true, granularity: stats }), summary: t('第 {n} 段：{how}', { n: paragraph, how: stats.phrase + stats.sentence + stats.paragraph ? how : t('无变化') }) };
         }),
     },
     {
       name: 'insert_paragraphs',
-      label: '插入段落',
+      label: t('插入段落'),
       permission: 'W',
       description: '在第 after 段之后插入若干段（after=0 表示插在文首）。style 可选：' + STYLES.join(' / '),
       parameters: {
@@ -247,12 +248,12 @@ export function createWordTools(): ToolDef[] {
             inserted.push(np);
           }
           await ctx.sync();
-          return { text: json({ ok: true, inserted: add.length }), summary: `第 ${after} 段后插入 ${add.length} 段` };
+          return { text: json({ ok: true, inserted: add.length }), summary: t('第 {n} 段后插入 {k} 段', { n: after, k: add.length }) };
         }),
     },
     {
       name: 'set_style',
-      label: '设置样式',
+      label: t('设置样式'),
       permission: 'W',
       description: '设置第 paragraph 段的内置样式：' + STYLES.join(' / '),
       parameters: {
@@ -265,12 +266,12 @@ export function createWordTools(): ToolDef[] {
           const p = check(await paragraphs(ctx), paragraph, oldStart);
           p.styleBuiltIn = style as Word.BuiltInStyleName;
           await ctx.sync();
-          return { text: 'ok', summary: `第 ${paragraph} 段 → ${style}` };
+          return { text: 'ok', summary: t('第 {n} 段 → {style}', { n: paragraph, style }) };
         }),
     },
     {
       name: 'insert_table',
-      label: '插入表格',
+      label: t('插入表格'),
       permission: 'W',
       description: '在第 after 段之后插入表格，values 为二维字符串数组，第一行为表头。',
       parameters: {
@@ -289,12 +290,12 @@ export function createWordTools(): ToolDef[] {
           const v = values.map((r) => [...r, ...Array(cols - r.length).fill('')]);
           p.insertTable(v.length, cols, Word.InsertLocation.after, v);
           await ctx.sync();
-          return { text: 'ok', summary: `${v.length}×${cols} 表格` };
+          return { text: 'ok', summary: t('{r}×{c} 表格', { r: v.length, c: cols }) };
         }),
     },
     {
       name: 'add_comment',
-      label: '添加批注',
+      label: t('添加批注'),
       permission: 'W',
       description: '在第 paragraph 段（或其中 quote 文字处）添加批注。仅在用户要求批注、或需要向作者提问而不宜直接改动时使用。',
       parameters: {
@@ -314,12 +315,12 @@ export function createWordTools(): ToolDef[] {
           }
           target.insertComment(comment);
           await ctx.sync();
-          return { text: 'ok', summary: `第 ${paragraph} 段：批注` };
+          return { text: 'ok', summary: t('第 {n} 段：批注', { n: paragraph }) };
         }),
     },
     {
       name: 'delete_paragraphs',
-      label: '删除段落',
+      label: t('删除段落'),
       permission: 'D',
       description: '删除第 from 到 to 段（含）。会记为修订；需要用户确认。',
       parameters: {
@@ -327,7 +328,7 @@ export function createWordTools(): ToolDef[] {
         properties: { from: { type: 'integer' }, to: { type: 'integer' }, oldStart: { type: 'string', description: '第 from 段开头文字' } },
         required: ['from', 'to', 'oldStart'],
       },
-      describe: (a: { from: number; to: number }) => (a.from === a.to ? `删除第 ${a.from} 段` : `删除第 ${a.from}–${a.to} 段`),
+      describe: (a: { from: number; to: number }) => (a.from === a.to ? t('删除第 {n} 段', { n: a.from }) : t('删除第 {a}–{b} 段', { a: a.from, b: a.to })),
       run: ({ from, to, oldStart }: { from: number; to: number; oldStart: string }) =>
         Word.run(async (ctx) => {
           const items = await paragraphs(ctx);
@@ -335,7 +336,7 @@ export function createWordTools(): ToolDef[] {
           const last = check(items, to);
           items[from - 1].getRange('Whole').expandTo(last.getRange('Whole')).delete();
           await ctx.sync();
-          return { text: 'ok', summary: `删除第 ${from}–${to} 段` };
+          return { text: 'ok', summary: t('删除第 {a}–{b} 段', { a: from, b: to }) };
         }),
     },
   ];

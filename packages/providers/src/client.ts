@@ -1,7 +1,9 @@
 // 对外统一入口：chat / listModels / testConnection
 
 import { anthropicChat, anthropicHeaders } from './anthropic.ts';
-import { fetchWithRetry, friendlyError, type FetchOptions } from './http.ts';
+import { fetchWithRetry, friendlyError, getProviderLang, type FetchOptions } from './http.ts';
+
+const L = (zh: string, en: string) => (getProviderLang() === 'en' ? en : zh);
 import { openaiChat } from './openai.ts';
 import type { ChatRequest, ChatResult, ProviderConnection, StreamHandlers } from './types.ts';
 
@@ -48,7 +50,7 @@ export async function testConnection(conn: ProviderConnection, model: string, si
   let t = performance.now();
   try {
     const models = await listModels(conn, opts);
-    steps.push({ name: '模型列表', ok: true, ms: ms(t), detail: `共 ${models.length} 个模型` });
+    steps.push({ name: '模型列表', ok: true, ms: ms(t), detail: L(`共 ${models.length} 个模型`, `${models.length} models`) });
   } catch (e) {
     // 部分端点不提供模型列表，不阻断后续测试
     steps.push({ name: '模型列表', ok: false, ms: ms(t), detail: friendlyError(e) });
@@ -62,7 +64,7 @@ export async function testConnection(conn: ProviderConnection, model: string, si
       {},
       opts,
     );
-    steps.push({ name: '流式输出', ok: true, ms: ms(t), detail: `回复：${(r.content || r.reasoning).trim().slice(0, 40) || '(空)'}` });
+    steps.push({ name: '流式输出', ok: true, ms: ms(t), detail: `${L('回复：', 'Reply: ')}${(r.content || r.reasoning).trim().slice(0, 40) || '(empty)'}` });
   } catch (e) {
     steps.push({ name: '流式输出', ok: false, ms: ms(t), detail: friendlyError(e) });
     return steps; // 流式都不通，工具调用不用测了
@@ -93,7 +95,7 @@ export async function testConnection(conn: ProviderConnection, model: string, si
     steps.push(
       call
         ? { name: '工具调用', ok: true, ms: ms(t), detail: `${call.name}(${call.arguments})` }
-        : { name: '工具调用', ok: false, ms: ms(t), detail: '模型没有调用工具，可能不支持工具调用' },
+        : { name: '工具调用', ok: false, ms: ms(t), detail: L('模型没有调用工具，可能不支持工具调用', 'The model did not call the tool; it may not support tool calling') },
     );
   } catch (e) {
     steps.push({ name: '工具调用', ok: false, ms: ms(t), detail: friendlyError(e) });

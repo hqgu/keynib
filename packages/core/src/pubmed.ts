@@ -6,6 +6,13 @@ import type { ToolDef } from './agent.ts';
 
 const EUTILS = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
 
+// 界面摘要语言（由界面设置同步；给模型的 note 保持中文）
+let uiLang: 'zh' | 'en' = 'zh';
+export function setCoreLang(l: 'zh' | 'en') {
+  uiLang = l;
+}
+const L = (zh: string, en: string) => (uiLang === 'en' ? en : zh);
+
 export interface PubmedRecord {
   pmid: string;
   firstAuthor: string; // 如 "Muller CJ"
@@ -159,7 +166,7 @@ export function pubmedTools(): ToolDef[] {
         const recs = await searchPubmed(query, max ?? 5);
         return {
           text: JSON.stringify(recs.map(({ pmid, title, shortCite, doi }) => ({ pmid, title, shortCite, doi }))),
-          summary: `「${query.slice(0, 30)}」${recs.length} 篇`,
+          summary: L(`「${query.slice(0, 30)}」${recs.length} 篇`, `"${query.slice(0, 30)}": ${recs.length} results`),
         };
       },
     },
@@ -172,7 +179,7 @@ export function pubmedTools(): ToolDef[] {
       parameters: { type: 'object', properties: { citation: { type: 'string' } }, required: ['citation'] },
       run: async ({ citation }: { citation: string }) => {
         const r = await verifyCitation(citation);
-        const label = { verified: '✓ 已核实', corrected: '需更正', not_found: '✗ 查不到', unparseable: '格式无法解析' }[r.status];
+        const label = { verified: L('✓ 已核实', '✓ Verified'), corrected: L('需更正', 'Needs correction'), not_found: L('✗ 查不到', '✗ Not found'), unparseable: L('格式无法解析', 'Unparseable') }[r.status];
         return {
           text: JSON.stringify({
             status: r.status,

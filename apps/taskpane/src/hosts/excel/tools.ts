@@ -3,6 +3,7 @@
 // 覆盖原有工作表用 overwrite_range（D 级，需用户确认，执行前快照）。统计量必须写成 Excel 公式。
 
 import type { ToolDef } from '@keynib/core';
+import { m, t } from '../../i18n';
 import type { ExcelChangeset } from './changeset';
 import { cellCount, colLetter, findErrors, profileColumns, quoteSheet } from './stats';
 
@@ -77,7 +78,7 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
   return [
     {
       name: 'get_workbook_summary',
-      label: '浏览工作簿',
+      label: t('浏览工作簿'),
       permission: 'R',
       description: '列出所有工作表：已用区域、表头（首行）、行数，以及各列推断类型。分析前先调用。',
       parameters: { type: 'object', properties: {} },
@@ -105,12 +106,12 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
             const cols = profileColumns(header, sample?.values ?? [], sample?.numberFormat).map((c) => `${c.column}:${c.name}(${c.type})`);
             out.push({ sheet: ws.name, used: used.address.split('!').pop(), rows: used.rowCount, columns: cols });
           }
-          return { text: json(out), summary: `${out.length} 个工作表` };
+          return { text: json(out), summary: t('{n} 个工作表', { n: out.length }) };
         }),
     },
     {
       name: 'read_range',
-      label: '读取数据',
+      label: t('读取数据'),
       permission: 'R',
       description: '读取区域的显示文本（日期按格式显示），最多返回 maxRows 行（默认 30，最多 200）。分析大表请用 profile_data，而不是读全部数据。',
       parameters: {
@@ -127,13 +128,13 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
           const rows = r.text.slice(0, lim).map((row) => row.join('\t'));
           return {
             text: json({ address: r.address, totalRows: r.rowCount, returned: rows.length, tsv: rows.join('\n') }),
-            summary: `${sheet}!${address}（${Math.min(r.rowCount, lim)} 行）`,
+            summary: t('{ref}（{n} 行）', { ref: `${sheet}!${address}`, n: Math.min(r.rowCount, lim) }),
           };
         }),
     },
     {
       name: 'profile_data',
-      label: '数据画像',
+      label: t('数据画像'),
       permission: 'R',
       description:
         '对一个数据区（首行为表头）逐列计算：类型、非空 n、缺失数、均值、标准差、分位数、最小 / 最大值，文本列给频数。仅供你了解数据；写入结果表的统计量必须用 Excel 公式计算。',
@@ -146,12 +147,12 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
           await ctx.sync();
           const [header, ...rows] = r.values;
           const profiles = profileColumns(header.map(String), rows, r.numberFormat.slice(1));
-          return { text: json({ address: r.address, rows: r.rowCount - 1, columns: profiles }), summary: `${profiles.length} 列 × ${r.rowCount - 1} 行` };
+          return { text: json({ address: r.address, rows: r.rowCount - 1, columns: profiles }), summary: t('{c} 列 × {r} 行', { c: profiles.length, r: r.rowCount - 1 }) };
         }),
     },
     {
       name: 'create_output_sheet',
-      label: '新建结果表',
+      label: t('新建结果表'),
       permission: 'W',
       description: '新建一个工作表存放分析结果、图表或透视表（重名时自动加序号）。返回实际表名。所有输出都写到这里。',
       parameters: { type: 'object', properties: { name: { type: 'string', description: '如 描述统计' } }, required: ['name'] },
@@ -172,7 +173,7 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
     },
     {
       name: 'write_range',
-      label: '写入结果',
+      label: t('写入结果'),
       permission: 'W',
       description:
         '向本轮新建的结果表写入二维数组（从 address 左上角开始）。文字直接写；统计量必须写公式，如 "=AVERAGE(Sheet1!F2:F201)"，引用中文或含空格的表名要加单引号。可选 numberFormat（同尺寸，如 "0.00"）。返回计算结果和错误单元格（#DIV/0! 等），有错误请修正。',
@@ -194,13 +195,16 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
           await ctx.sync();
           return {
             text: json({ address: r.address, computed: r.values, errors: r.errors, warnings: r.warnings }),
-            summary: `${r.address.split('!').pop()}，${r.formulaCells} 个公式${r.errors.length ? `，${r.errors.length} 个错误` : ''}${r.warnings.length ? `，${r.warnings.length} 个警告` : ''}`,
+            summary:
+              t('{addr}，{f} 个公式', { addr: r.address.split('!').pop()!, f: r.formulaCells }) +
+              (r.errors.length ? t('，{n} 个错误', { n: r.errors.length }) : '') +
+              (r.warnings.length ? t('，{n} 个警告', { n: r.warnings.length }) : ''),
           };
         }),
     },
     {
       name: 'format_output',
-      label: '设置格式',
+      label: t('设置格式'),
       permission: 'W',
       description: '设置结果表中某区域的格式：加粗、数字格式（如 "0.0"、"0.0%"）、背景色、边框。',
       parameters: {
@@ -236,7 +240,7 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
     },
     {
       name: 'create_chart',
-      label: '创建图表',
+      label: t('创建图表'),
       permission: 'W',
       description:
         `在结果表上创建图表，数据可来自任何表。type：${CHART_TYPES.join(' / ')}。dataRange 含表头；比较两组请先在结果表用公式算好汇总再作图，或用 BoxWhisker / Histogram 直接作分布图。anchor 为图表左上角单元格。`,
@@ -279,7 +283,7 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
     },
     {
       name: 'create_pivot',
-      label: '数据透视表',
+      label: t('数据透视表'),
       permission: 'W',
       description: `在结果表创建数据透视表。rows / columns 为字段名（表头），values 为 [{field, summarizeBy}]，summarizeBy：${AGG.join(' / ')}。`,
       parameters: {
@@ -310,12 +314,12 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
           const body = pt.layout.getRange();
           body.load('address,values');
           await ctx.sync();
-          return { text: json({ address: body.address, values: body.values.slice(0, 30) }), summary: `${a.rows.join('×')} 透视` };
+          return { text: json({ address: body.address, values: body.values.slice(0, 30) }), summary: t('{rows} 透视', { rows: a.rows.join('×') }) };
         }),
     },
     {
       name: 'overwrite_range',
-      label: '修改原表',
+      label: t('修改原表'),
       permission: 'D',
       description: '覆盖原有工作表的单元格（如补一列计算值、修正数据）。需要用户确认；执行前自动快照，可撤销。能放到结果表的内容不要用它。',
       parameters: {
@@ -325,7 +329,7 @@ export function createExcelTools(getChangeset: () => ExcelChangeset): ToolDef[] 
       },
       describe: (a: { sheet: string; address: string; values: unknown[][] }) => {
         const n = a.values.length * Math.max(...a.values.map((r) => r.length));
-        return `覆盖原表「${a.sheet}」从 ${a.address.split(':')[0]} 开始的 ${n} 个单元格（可撤销）`;
+        return t('覆盖原表「{sheet}」从 {cell} 开始的 {n} 个单元格（可撤销）', { sheet: a.sheet, cell: a.address.split(':')[0], n });
       },
       run: ({ sheet, address, values }: { sheet: string; address: string; values: unknown[][] }) =>
         Excel.run(async (ctx) => {

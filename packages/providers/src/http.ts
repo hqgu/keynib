@@ -40,6 +40,26 @@ export function classify(status: number): ProviderError['kind'] {
   return 'server';
 }
 
+// 错误提示语言（由界面设置同步）
+let lang: 'zh' | 'en' = 'zh';
+export function setProviderLang(l: 'zh' | 'en') {
+  lang = l;
+}
+export function getProviderLang() {
+  return lang;
+}
+
+const KIND_HINT_EN: Record<ProviderError['kind'], string> = {
+  auth: 'Invalid API key or no permission',
+  notFound: 'Endpoint or model not found',
+  rateLimit: 'Rate limited or insufficient balance',
+  badRequest: 'Request rejected',
+  server: 'Provider service error',
+  network: 'Network unreachable (check your network or configure a relay)',
+  timeout: 'Request timed out',
+  aborted: 'Stopped',
+};
+
 const KIND_HINT: Record<ProviderError['kind'], string> = {
   auth: 'Key 无效或没有权限',
   notFound: '地址或模型不存在',
@@ -53,8 +73,9 @@ const KIND_HINT: Record<ProviderError['kind'], string> = {
 
 export function friendlyError(e: unknown): string {
   if (e instanceof ProviderError) {
-    const hint = KIND_HINT[e.kind];
-    return e.status ? `${hint}（${e.status}）：${e.message}` : `${hint}${e.message && e.message !== hint ? '：' + e.message : ''}`;
+    const hint = (lang === 'en' ? KIND_HINT_EN : KIND_HINT)[e.kind];
+    const [l, r, c] = lang === 'en' ? [' (', ')', ': '] : ['（', '）', '：'];
+    return e.status ? `${hint}${l}${e.status}${r}${c}${e.message}` : `${hint}${e.message && e.message !== hint ? c + e.message : ''}`;
   }
   return String((e as any)?.message ?? e);
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { makeStyles, tokens } from '@fluentui/react-components';
 import type { SlashCommand } from '../state/commands';
+import { t } from '../i18n';
 
 const useStyles = makeStyles({
   menu: {
@@ -44,8 +45,8 @@ export function SlashMenu({
   const activeRef = useRef<HTMLDivElement>(null);
   useEffect(() => activeRef.current?.scrollIntoView({ block: 'nearest' }), [index]);
   return (
-    <div className={s.menu} role="listbox" aria-label="快捷指令">
-      {items.length === 0 && <div className={s.empty}>没有匹配的指令（可在设置中添加自定义指令）</div>}
+    <div className={s.menu} role="listbox" aria-label={t('快捷指令')}>
+      {items.length === 0 && <div className={s.empty}>{t('没有匹配的指令（可在设置中添加自定义指令）')}</div>}
       {items.map((c, i) => (
         <div
           key={c.id}
@@ -62,12 +63,12 @@ export function SlashMenu({
         >
           <span className={s.name}>
             /{c.name}
-            <span className={s.tag}>{c.autoSend ? '直接执行' : '填入后补充'}{c.builtin ? '' : ' · 自定义'}</span>
+            <span className={s.tag}>{c.autoSend ? t('直接执行') : t('填入后补充')}{c.builtin ? '' : ` · ${t('自定义')}`}</span>
           </span>
           <span className={s.desc}>{c.description}</span>
         </div>
       ))}
-      <div className={s.hint}>↑↓ 选择 · Enter / Tab 确认 · Esc 关闭 · 可输入拼音首字母如 /rs</div>
+      <div className={s.hint}>{t('↑↓ 选择 · Enter / Tab 确认 · Esc 关闭 · 可输入拼音首字母如 /rs')}</div>
     </div>
   );
 }

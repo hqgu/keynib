@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button, makeStyles, tokens, Tooltip } from '@fluentui/react-components';
 import { AddRegular, ArrowLeftRegular, HistoryRegular, SettingsRegular } from '@fluentui/react-icons';
+import { t } from './i18n';
 import { activeConnection, CUSTOM_ID, providerMeta, useSettings } from './state/settings';
 import type { Session } from './state/sessions';
 import { ChatView } from './views/ChatView';
@@ -59,6 +60,10 @@ export function App() {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     import('./dev/bridge').then(({ devApi }) => {
+      devApi.view = (v: View) => {
+        setView(v);
+        return v;
+      };
       devApi.newChat = () => {
         setOpenSession(undefined);
         setChatKey((k) => k + 1);
@@ -70,20 +75,20 @@ export function App() {
 
   const pillText = active
     ? `${active.id === CUSTOM_ID && active.cfg.name ? active.cfg.name : providerMeta(active.id).name} · ${active.cfg.model}`
-    : '未配置模型';
+    : t('未配置模型');
 
   return (
     <div className={s.root}>
       <div className={s.header}>
         {view === 'chat' ? (
-          <span className={s.brand}>妙笔</span>
+          <span className={s.brand}>{t('妙笔')}</span>
         ) : (
-          <Button appearance="subtle" size="small" icon={<ArrowLeftRegular />} onClick={() => setView(view === 'diagnostics' ? 'settings' : 'chat')} aria-label="返回" />
+          <Button appearance="subtle" size="small" icon={<ArrowLeftRegular />} onClick={() => setView(view === 'diagnostics' ? 'settings' : 'chat')} aria-label={t('返回')} />
         )}
-        <button className={s.pill} onClick={() => setView('settings')} title="切换模型">
+        <button className={s.pill} onClick={() => setView('settings')} title={t('切换模型')}>
           {pillText}
         </button>
-        <Tooltip content="新对话" relationship="label">
+        <Tooltip content={t('新对话')} relationship="label">
           <Button
             appearance="subtle"
             size="small"
@@ -95,10 +100,10 @@ export function App() {
             }}
           />
         </Tooltip>
-        <Tooltip content="历史" relationship="label">
+        <Tooltip content={t('历史')} relationship="label">
           <Button appearance="subtle" size="small" icon={<HistoryRegular />} onClick={() => setView('history')} />
         </Tooltip>
-        <Tooltip content="设置" relationship="label">
+        <Tooltip content={t('设置')} relationship="label">
           <Button appearance="subtle" size="small" icon={<SettingsRegular />} onClick={() => setView('settings')} />
         </Tooltip>
       </div>
