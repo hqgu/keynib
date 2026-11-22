@@ -22,7 +22,8 @@ export function lintPrompt(pubmed: boolean): string {
 }
 
 const PPT = ['PowerPoint'];
-const SEL = '当前选中的内容（没有选中时为当前页）';
+const SEL = '当前选中的内容（没有选中时：PPT 为当前页，Word 为光标所在段落）';
+const WORD = ['Word'];
 
 export function builtinCommands(opts: { pubmed: boolean }): SlashCommand[] {
   const c = (o: Omit<SlashCommand, 'builtin'>): SlashCommand => ({ ...o, builtin: true });
@@ -31,12 +32,16 @@ export function builtinCommands(opts: { pubmed: boolean }): SlashCommand[] {
       description: '粘贴大纲，每个标题生成一页', prompt: '按下面的大纲生成幻灯片，每个一级标题一页，使用合适的版式：\n' }),
     c({ id: 'polish', name: '润色', aliases: ['rs', 'polish'], autoSend: true,
       description: `润色${SEL}的文字`, prompt: `润色${SEL}的文字：更准确、简洁、专业，保持原意和要点数量，不改格式。` }),
-    c({ id: 'shorten', name: '精简', aliases: ['jj', 'short'], hosts: PPT, autoSend: true,
-      description: '要点压缩为每条一行', prompt: `精简${SEL}的要点：每条尽量一行、去掉冗余修饰，保持专业准确，不改格式。` }),
+    c({ id: 'shorten', name: '精简', aliases: ['jj', 'short'], autoSend: true,
+      description: '去掉冗余，压缩篇幅', prompt: `精简${SEL}：去掉冗余修饰和重复表达，保持专业准确和全部关键信息，不改格式。` }),
+    c({ id: 'academic', name: '学术润色', aliases: ['xs', 'academic'], hosts: WORD, autoSend: true,
+      description: '按学术论文规范润色选中段落', prompt: `按学术论文写作规范润色${SEL}：术语准确统一、句式严谨、去口语化，中文用全角标点，数字与单位间保留空格；保留全部数据、统计量和引用，只做必要修改。` }),
+    c({ id: 'logic', name: '检查逻辑', aliases: ['lj', 'logic'], hosts: WORD, autoSend: true,
+      description: '找出前后矛盾、数据不一致之处并批注', prompt: '通读全文，找出前后矛盾、数字或样本量不一致、术语不统一、结论与结果不符之处；不要直接改动，在相应位置用批注指出并给出修改建议，最后汇总列出。' }),
     c({ id: 'translate', name: '翻译', aliases: ['fy', 'translate'], autoSend: false,
       description: '中英互译选中内容', prompt: `把${SEL}翻译成英文（若原文是英文则译成中文），术语准确，直接替换原文。` }),
-    c({ id: 'terms', name: '术语中英对照', aliases: ['sy', 'terms'], hosts: PPT, autoSend: true,
-      description: '专业术语首次出现补英文及缩写', prompt: '检查整套幻灯片，专业术语首次出现时补充英文全称及缩写，如“随机对照试验（Randomized Controlled Trial, RCT）”。只加注释，不改其他内容。' }),
+    c({ id: 'terms', name: '术语中英对照', aliases: ['sy', 'terms'], autoSend: true,
+      description: '专业术语首次出现补英文及缩写', prompt: '检查全文，专业术语首次出现时补充英文全称及缩写，如“随机对照试验（Randomized Controlled Trial, RCT）”。只加注释，不改其他内容。' }),
     c({ id: 'layout', name: '检查排版', aliases: ['pb', 'layout'], hosts: PPT, autoSend: true,
       description: '检查当前页溢出、重叠、对齐并修正', prompt: '检查当前页的排版：文字溢出、元素重叠、对齐与留白，发现问题直接修正，最后说明改了什么。' }),
     c({ id: 'table', name: '加对比表', aliases: ['dbb', 'table'], hosts: PPT, autoSend: false,

@@ -7,6 +7,7 @@ import { activeConnection, getSettings, updateProvider, updateSettings } from '.
 import { PROVIDER_PRESETS } from '@keynib/providers';
 import { testConnection } from '@keynib/providers';
 import { readShapes } from '../hosts/powerpoint/tools';
+import { runWordProbe } from '../probes/wordProbe';
 
 type Handler = (payload: any) => Promise<unknown> | unknown;
 
@@ -80,6 +81,48 @@ export const devApi: Record<string, Handler> = {
         trackingMode: ctx.document.changeTrackingMode,
         first: ps.items.slice(0, 5).map((p) => `[${p.style}] ${p.text.slice(0, 60)}`),
       };
+    }),
+  wordProbe: () => runWordProbe(),
+  // 只读：Word 当前文本（不含已删除文字）、原始文本、修订列表、修订模式
+  wordState: () =>
+    Word.run(async (ctx) => {
+      const body = ctx.document.body;
+      const cur = body.getRange('Whole').getReviewedText(Word.ChangeTrackingVersion.current);
+      const tc = body.getTrackedChanges();
+      tc.load('items/type,items/text');
+      ctx.document.load('changeTrackingMode');
+      const ps = body.paragraphs;
+      ps.load('items/text');
+      await ctx.sync();
+      return {
+        mode: ctx.document.changeTrackingMode,
+        paragraphs: ps.items.map((p, i) => `${i + 1}: ${p.text}`),
+        current: cur.value,
+        tracked: tc.items.map((t) => `${t.type}: ${t.text}`),
+      };
+    }),
+  // 测试用：拒绝文本为空的 Deleted 修订（修复前留下的残留）
+  wordRejectEmptyDeleted: () =>
+    Word.run(async (ctx) => {
+      const tc = ctx.document.body.getTrackedChanges();
+      tc.load('items/type,items/text');
+      await ctx.sync();
+      const targets = tc.items.filter((t) => t.type === 'Deleted' && !t.text.trim());
+      targets.forEach((t) => t.reject());
+      await ctx.sync();
+      return `rejected ${targets.length}`;
+    }),
+  // 测试用：模拟"用户自己已有的一条修订"（开修订插入一句，再恢复原修订模式）
+  wordSeedRevision: (text: string) =>
+    Word.run(async (ctx) => {
+      ctx.document.load('changeTrackingMode');
+      await ctx.sync();
+      const mode = ctx.document.changeTrackingMode;
+      ctx.document.changeTrackingMode = Word.ChangeTrackingMode.trackAll;
+      ctx.document.body.insertParagraph(text || '（这是用户自己已有的一条修订）', Word.InsertLocation.end);
+      ctx.document.changeTrackingMode = mode;
+      await ctx.sync();
+      return 'ok';
     }),
   settings: () => {
     const s = getSettings();

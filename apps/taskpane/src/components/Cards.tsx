@@ -189,3 +189,59 @@ export function Reasoning({ text, live }: { text: string; live?: boolean }) {
     </div>
   );
 }
+
+// Word：本轮修订卡片（修订已在文档中，用户也可在 Word "审阅"里逐条处理）
+export function RevisionCard({
+  count,
+  state,
+  canSettle,
+  onAccept,
+  onReject,
+}: {
+  count: number;
+  state: 'open' | 'pending' | 'accepted' | 'rejected';
+  canSettle: boolean;
+  onAccept: () => Promise<void>;
+  onReject: () => Promise<void>;
+}) {
+  const s = useStyles();
+  const [busy, setBusy] = useState<'' | 'accept' | 'reject'>('');
+  const [err, setErr] = useState('');
+  const run = async (kind: 'accept' | 'reject', fn: () => Promise<void>) => {
+    setBusy(kind);
+    setErr('');
+    try {
+      await fn();
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
+    }
+    setBusy('');
+  };
+  return (
+    <div className={s.changeCard}>
+      <b>本轮修订</b>　{count} 处
+      <div className={s.row}>
+        {state === 'accepted' ? (
+          <span>✓ 已全部接受</span>
+        ) : state === 'rejected' ? (
+          <span>✓ 已全部拒绝，文档已恢复</span>
+        ) : (
+          <>
+            <Button size="small" appearance="primary" disabled={!canSettle || !!busy} icon={busy === 'accept' ? <Spinner size="extra-tiny" /> : undefined} onClick={() => run('accept', onAccept)}>
+              全部接受
+            </Button>
+            <Button size="small" disabled={!canSettle || !!busy} icon={busy === 'reject' ? <Spinner size="extra-tiny" /> : <ArrowUndoRegular />} onClick={() => run('reject', onReject)}>
+              全部拒绝
+            </Button>
+          </>
+        )}
+        {err && <span className={s.err}>操作失败：{err}</span>}
+      </div>
+      {(state === 'pending' || state === 'open') && (
+        <div style={{ marginTop: 4, color: tokens.colorNeutralForeground3 }}>
+          只处理本轮的修订，你原有的修订不受影响。也可以在 Word「审阅」选项卡中逐条接受或拒绝；修订保存在文档里，关闭面板也不会丢。
+        </div>
+      )}
+    </div>
+  );
+}

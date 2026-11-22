@@ -8,9 +8,12 @@ import type { ChatMessage } from '@keynib/providers';
 import { activeConnection, activeProfile, getSettings, updateSettings, useSettings } from '../state/settings';
 import { currentDoc, newSessionId, saveSession, type Session } from '../state/sessions';
 import { PptChangeset } from '../hosts/powerpoint/changeset';
+import { WordRevisions } from '../hosts/word/revisions';
+import { createWordTools, wordContext } from '../hosts/word/tools';
+import { wordSystemPrompt } from '../hosts/word/prompt';
 import { createPptTools, pptContext } from '../hosts/powerpoint/tools';
 import { pptSystemPrompt } from '../hosts/powerpoint/prompt';
-import { ChangeCard, ConfirmCard, Reasoning, StepList, type StepView } from '../components/Cards';
+import { ChangeCard, ConfirmCard, Reasoning, RevisionCard, StepList, type StepView } from '../components/Cards';
 import { Markdown } from '../components/Markdown';
 import { SlashMenu } from '../components/SlashMenu';
 import { availableCommands, filterCommands, lintPrompt, slashQuery, type SlashCommand } from '../state/commands';
@@ -67,6 +70,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
   const active = activeConnection(settings);
   const host = currentHost();
   const isPpt = host === 'PowerPoint';
+  const isWord = host === 'Word';
 
   const [session, setSession] = useState<Session | null>(initialSession ?? null);
   const [messages, setMessages] = useState<ChatMessage[]>(initialSession?.messages ?? []);
@@ -75,7 +79,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState<{ description: string; resolve: (ok: boolean) => void } | null>(null);
-  const [changesets, setChangesets] = useState<Record<number, PptChangeset>>({});
+  const [changesets, setChangesets] = useState<Record<number, PptChangeset | WordRevisions>>({});
   const [, force] = useState(0);
   const [input, setInput] = useState('');
   const [menuIndex, setMenuIndex] = useState(0);
@@ -98,7 +102,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
   }, [changesets, messages, running]);
 
   const toolLabels = useMemo(
-    () => Object.fromEntries([...createPptTools(() => new PptChangeset()), ...pubmedTools()].map((t) => [t.name, t.label])),
+    () => Object.fromEntries([...createPptTools(() => new PptChangeset()), ...createWordTools(), ...pubmedTools()].map((t) => [t.name, t.label])),
     [],
   );
 
@@ -134,22 +138,41 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
         usage: { inputTokens: 0, outputTokens: 0 },
       };
 
-    const cs = new PptChangeset();
-    setChangesets((c) => ({ ...c, [turnIndex]: cs }));
+    let cs: PptChangeset | WordRevisions | null = null;
     let tools: ToolDef[] = [];
-    let system = '你是"妙笔 Keynib"，一个 Office 助手。当前宿主暂未开放编辑工具（Word 将在 M2、Excel 在 M3 支持），请直接用文字回答。';
+    let system = '你是"妙笔 Keynib"，一个 Office 助手。当前宿主暂未开放编辑工具（Excel 将在 M3 支持），请直接用文字回答。';
     if (isPpt) {
-      tools = createPptTools(() => cs, () => activeProfile(getSettings()));
+      const ppt = new PptChangeset();
+      cs = ppt;
+      tools = createPptTools(() => ppt, () => activeProfile(getSettings()));
       if (settings.pubmed) tools = [...tools, ...pubmedTools()];
       const ctx = await pptContext().catch(() => '（无法读取文档概况）');
       system = pptSystemPrompt(ctx, active.cfg.vision, eventsRef.current, activeProfile(settings), settings.pubmed);
       eventsRef.current = [];
+    } else if (isWord) {
+      tools = createWordTools();
+      if (settings.pubmed) tools = [...tools, ...pubmedTools()];
+      const ctx = await wordContext().catch(() => '（无法读取文档概况）');
+      system = wordSystemPrompt(ctx, eventsRef.current, settings.pubmed);
+      eventsRef.current = [];
+      const rev = new WordRevisions();
+      try {
+        await rev.begin(); // 打开修订模式；结束时在 finally 中恢复
+        cs = rev;
+      } catch (e: any) {
+        setRunning(false);
+        setError(`无法开启修订模式：${e?.message ?? e}`);
+        return { error: '无法开启修订模式' };
+      }
     }
+    if (cs) setChangesets((c) => ({ ...c, [turnIndex]: cs! }));
 
     let added: ChatMessage[] = [];
     const usage = { ...sess.usage };
     setLive({ text: '', reasoning: '' });
-    const result = await runAgent({
+    let result: Awaited<ReturnType<typeof runAgent>>;
+    try {
+      result = await runAgent({
       conn: active.conn,
       model: active.cfg.model,
       system,
@@ -186,7 +209,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
         },
         confirm: (_call, _tool, _args, description) => new Promise<boolean>((resolve) => setConfirm({ description, resolve })),
         beforeWrite: async (tool, args) => {
-          if (tool.targets) await cs.beforeWrite(tool.targets(args));
+          if (cs instanceof PptChangeset && tool.targets) await cs.beforeWrite(tool.targets(args));
         },
         onUsage: (u) => {
           usage.inputTokens += u.inputTokens ?? 0;
@@ -194,6 +217,10 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
         },
       },
     });
+    } finally {
+      // Word：无论成功、出错还是停止，都恢复用户原来的修订模式并统计本轮修订
+      if (cs instanceof WordRevisions) await cs.end().catch(() => {});
+    }
     setLive(null);
     setRunning(false);
     setConfirm(null);
@@ -209,7 +236,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
     return {
       stoppedBy: result.stoppedBy,
       error: result.error,
-      changes: cs.isEmpty ? null : cs.summary(),
+      changes: !cs || cs.isEmpty ? null : cs instanceof PptChangeset ? cs.summary() : { revisions: cs.count },
       reply: result.messages.filter((m) => m.role === 'assistant').map((m) => m.content).join('\n').trim(),
       steps: result.messages.flatMap((m) => (m.role === 'tool' ? [`${m.isError ? '✗' : '✓'} ${m.name}: ${m.content.slice(0, 160)}`] : [])),
       usage: { input: usage.inputTokens - sess.usage.inputTokens, output: usage.outputTokens - sess.usage.outputTokens },
@@ -228,6 +255,11 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
         return 'ok';
       };
       devApi.slashMenu = (q: string) => filterCommands(commands, q).map((c) => `/${c.name}（${c.autoSend ? '直接执行' : '填入'}）`);
+      devApi.acceptLast = async () => {
+        if (lastChangeTurn === undefined) return '没有待处理的轮次';
+        await acceptTurn(lastChangeTurn);
+        return 'ok';
+      };
       devApi.chatState = () => ({ running, error, messages: messages.length, waitingForUserConfirm: confirm?.description ?? null });
     });
   });
@@ -237,7 +269,17 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
     await cs.undo();
     const req = messages[turnIndex];
     const what = req?.role === 'user' ? `“${req.content.replace(/\s+/g, ' ').slice(0, 30)}”` : '';
-    eventsRef.current.push(`用户撤销了请求${what}那一轮的全部修改，文档已恢复到该轮之前的状态。`);
+    eventsRef.current.push(
+      cs instanceof WordRevisions
+        ? `用户拒绝了请求${what}那一轮的全部修订，相关段落已恢复原文。`
+        : `用户撤销了请求${what}那一轮的全部修改，文档已恢复到该轮之前的状态。`,
+    );
+    setChangesets((c) => ({ ...c }));
+  }
+
+  async function acceptTurn(turnIndex: number) {
+    const cs = changesets[turnIndex];
+    if (cs instanceof WordRevisions) await cs.acceptTurn();
     setChangesets((c) => ({ ...c }));
   }
 
@@ -338,12 +380,22 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
       let start = i;
       while (start > 0 && messages[start].role !== 'user') start--;
       const cs = changesets[start];
-      if (cs && !cs.isEmpty) {
-        const sum = cs.summary();
+      if (cs instanceof WordRevisions && !cs.isEmpty) {
+        rendered.push(
+          <RevisionCard
+            key={`cs${start}`}
+            count={cs.count}
+            state={cs.state}
+            canSettle={start === lastChangeTurn && !running}
+            onAccept={() => acceptTurn(start)}
+            onReject={() => undoTurn(start)}
+          />,
+        );
+      } else if (cs instanceof PptChangeset && !cs.isEmpty) {
         rendered.push(
           <ChangeCard
             key={`cs${start}`}
-            {...sum}
+            {...cs.summary()}
             undone={cs.undone}
             canUndo={start === lastChangeTurn && !running}
             onUndo={() => undoTurn(start)}
@@ -358,7 +410,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
   return (
     <div className={s.root}>
       <div className={s.scroll} ref={scrollRef}>
-        {!isPpt && host !== 'Unknown' && (
+        {!isPpt && !isWord && host !== 'Unknown' && (
           <MessageBar intent="info">
             <MessageBarBody>{host} 的编辑工具将在后续版本开放，目前只能对话。</MessageBarBody>
           </MessageBar>
@@ -414,7 +466,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
             setMenuClosed(false);
           }}
           onKeyDown={onKey}
-          placeholder={isPpt ? '告诉妙笔要对幻灯片做什么… 输入 / 调出快捷指令' : '输入问题… 输入 / 调出快捷指令'}
+          placeholder={isPpt ? '告诉妙笔要对幻灯片做什么… 输入 / 调出快捷指令' : isWord ? '告诉妙笔要怎么改这篇文档… 输入 / 调出快捷指令' : '输入问题… 输入 / 调出快捷指令'}
           resize="vertical"
           textarea={{ rows: 3, ref: inputRef }}
           aria-autocomplete="list"

@@ -28,6 +28,8 @@ test('按名称、拼音首字母、英文别名、描述筛选', () => {
 test('按宿主与前置条件过滤', () => {
   const word = availableCommands([], { host: 'Word', hasProfile: true, pubmed: false });
   assert.ok(word.some((c) => c.id === 'polish'));
+  assert.ok(word.some((c) => c.id === 'academic'));
+  assert.ok(!availableCommands([], ctx).some((c) => c.id === 'academic')); // Word 专用
   assert.ok(!word.some((c) => c.id === 'outline')); // PPT 专用
   assert.ok(!word.some((c) => c.id === 'cite')); // 需要 PubMed
   const noProfile = availableCommands([], { host: 'PowerPoint', hasProfile: false, pubmed: true });
