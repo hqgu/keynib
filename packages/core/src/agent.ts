@@ -176,6 +176,8 @@ async function execute(
     const out = await tool.run(args);
     return { msg: { ...base, content: truncate(out.text), images: out.images }, summary: out.summary };
   } catch (e: any) {
-    return { msg: { ...base, content: `执行出错：${e?.message ?? e}`, isError: true }, summary: `出错：${e?.message ?? e}` };
+    // Office.js 的 GeneralException 很笼统，附上 debugInfo.errorLocation 便于定位（如 SlideCollection.add）
+    const where = e?.debugInfo?.errorLocation ? ` [${e.debugInfo.errorLocation}]` : '';
+    return { msg: { ...base, content: `执行出错：${e?.message ?? e}${where}`, isError: true }, summary: `出错：${e?.message ?? e}${where}` };
   }
 }

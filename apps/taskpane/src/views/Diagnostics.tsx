@@ -22,6 +22,7 @@ import { runStorageProbe, type StorageProbeResult } from '../probes/storage';
 import { runPptRoundtrip, type RoundtripResult } from '../probes/pptRoundtrip';
 import { markerExists, removeMarker, writeMarker } from '../probes/undo';
 import { runUndoSelfTest, type UndoSelfTestResult } from '../probes/undoSelfTest';
+import { runPptCapabilityProbe, type StepResult } from '../probes/pptCapabilityProbe';
 import { setUndoFormatting } from '../hosts/powerpoint/changeset';
 
 const useStyles = makeStyles({
@@ -74,6 +75,8 @@ export function Diagnostics() {
   // —— 存储 / 往返 / 撤销探针 ——
   const [storage, setStorage] = useState<StorageProbeResult | null>(null);
   const [roundtrip, setRoundtrip] = useState<RoundtripResult | null>(null);
+  const [caps, setCaps] = useState<StepResult[] | null>(null);
+  const [capsRunning, setCapsRunning] = useState(false);
   const [rtStatus, setRtStatus] = useState<Status>('idle');
   const [undoMsg, setUndoMsg] = useState<string>('');
   const [undoResult, setUndoResult] = useState<'reverted' | 'kept' | null>(null);
@@ -124,6 +127,7 @@ export function Diagnostics() {
       env,
       cors: Object.values(cors),
       storage,
+      pptCapabilities: caps,
       pptRoundtrip: roundtrip,
       undoSelfTest: selfTest,
       undo: undoResult ? { host, result: undoResult } : null,
@@ -232,6 +236,36 @@ export function Diagnostics() {
                           .map(([h, v]) => `${h}:${v ? '✓' : '—'}`)
                           .join('  ')}
                   </span>
+                </Fragment>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {host === 'PowerPoint' && (
+        <Card>
+          <CardHeader
+            header={<Text weight="semibold">PPT 能力逐项探针</Text>}
+            description={<Text size={200}>逐个调用新建页、版式、表格、截图、导出、插回、移动等接口，分别记录成败；会临时新建几页，测完删除。</Text>}
+          />
+          <Button
+            appearance="primary"
+            disabled={capsRunning}
+            onClick={async () => {
+              setCapsRunning(true);
+              setCaps(await runPptCapabilityProbe());
+              setCapsRunning(false);
+            }}
+          >
+            {capsRunning ? <Spinner size="tiny" /> : '逐项测试'}
+          </Button>
+          {caps && (
+            <div className={s.kv}>
+              {caps.map((c) => (
+                <Fragment key={c.step}>
+                  <span>{c.ok ? '✅' : '❌'} {c.step}</span>
+                  <span className={s.mono}>{c.detail ?? ''}</span>
                 </Fragment>
               ))}
             </div>

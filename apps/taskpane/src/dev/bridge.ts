@@ -9,6 +9,7 @@ import { testConnection } from '@keynib/providers';
 import { readShapes } from '../hosts/powerpoint/tools';
 import { runWordProbe } from '../probes/wordProbe';
 import { runExcelProbe } from '../probes/excelProbe';
+import { runPptCapabilityProbe } from '../probes/pptCapabilityProbe';
 import { runExcelUndoSelfTest } from '../probes/excelUndoSelfTest';
 import { SEED_HEADER, seedTrial } from '../hosts/excel/seed';
 
@@ -87,6 +88,7 @@ export const devApi: Record<string, Handler> = {
     }),
   wordProbe: () => runWordProbe(),
   excelProbe: () => runExcelProbe(),
+  pptCaps: () => runPptCapabilityProbe(),
   excelSelftest: (n?: number) => runExcelUndoSelfTest(n ?? 20),
   // 测试用：把固定种子的 200 例试验数据写入 Sheet1（仅当 Sheet1 为空）
   excelSeed: () =>
