@@ -1,0 +1,131 @@
+// 面板端的开发测试通道客户端（仅开发模式加载）
+// 只提供固定命令：自测、发消息、撤销最近一轮、只读查看幻灯片、读取（脱敏）设置。
+// 不能执行任意代码；确认卡片（删除等破坏性操作）只能由用户在面板上点击，通道不代答。
+
+import { runUndoSelfTest } from '../probes/undoSelfTest';
+import { activeConnection, getSettings, updateProvider, updateSettings } from '../state/settings';
+import { PROVIDER_PRESETS } from '@keynib/providers';
+import { testConnection } from '@keynib/providers';
+import { readShapes } from '../hosts/powerpoint/tools';
+
+type Handler = (payload: any) => Promise<unknown> | unknown;
+
+export const devApi: Record<string, Handler> = {
+  ping: () => ({ host: Office.context?.host, time: new Date().toISOString() }),
+  selftest: (times?: number) => runUndoSelfTest(times ?? 20),
+  // 只读：整套幻灯片概况（每页形状类型、文本、字体、字号）
+  deck: () =>
+    PowerPoint.run(async (ctx) => {
+      const slides = ctx.presentation.slides;
+      slides.load('items/id');
+      const masters = ctx.presentation.slideMasters;
+      masters.load('items/id');
+      await ctx.sync();
+      const out = [];
+      for (let i = 0; i < slides.items.length; i++) {
+        const shapes = await readShapes(ctx, slides.items[i]);
+        out.push({
+          slide: i + 1,
+          shapes: shapes.map((s) => ({ type: s.type, text: s.text?.slice(0, 80), font: s.font?.name, size: s.font?.size, box: [s.left, s.top, s.width, s.height] })),
+        });
+      }
+      return { count: slides.items.length, masters: masters.items.length, slides: out };
+    }),
+  // 用当前选中的厂商做三步连接测试（Key 只在面板内使用）
+  testConn: async () => {
+    const a = activeConnection(getSettings());
+    if (!a) return '未配置当前模型';
+    return { provider: a.id, model: a.cfg.model, steps: await testConnection(a.conn, a.cfg.model) };
+  },
+  // 只读：某页截图（PNG base64），用于人工核对版面
+  shot: (n: number) =>
+    PowerPoint.run(async (ctx) => {
+      const s = ctx.presentation.slides.getItemAt((n ?? 1) - 1);
+      const img = s.getImageAsBase64({ width: 960 });
+      await ctx.sync();
+      return { png: img.value };
+    }),
+  // 切换当前使用的厂商（必须是已填好 Key 和模型的）
+  useProvider: (id: string) => {
+    const cfg = getSettings().providers[id];
+    if (!cfg?.apiKey || !cfg.model) return `${id} 尚未配置完整`;
+    updateSettings({ activeProviderId: id });
+    return { active: id, model: cfg.model };
+  },
+  // 切换某厂商的预置接口地址（同时切换协议），如 DeepSeek 的 Anthropic 兼容接口
+  setEndpoint: ({ id, label }: { id: string; label: string }) => {
+    const opt = PROVIDER_PRESETS.find((p) => p.id === id)?.baseUrls.find((b) => b.label === label);
+    if (!opt) return '没有这个接口选项';
+    updateProvider(id, { baseUrl: opt.url, protocol: opt.protocol });
+    return opt;
+  },
+  useProfile: (id: string | null) => {
+    updateSettings({ activeProfileId: id });
+    return { activeProfileId: id };
+  },
+  setPubmed: (on: boolean) => {
+    updateSettings({ pubmed: !!on });
+    return { pubmed: !!on };
+  },
+  // 只读：Word 文档概况（段落数、是否已保存、前几段、修订模式）
+  doc: () =>
+    Word.run(async (ctx) => {
+      const ps = ctx.document.body.paragraphs;
+      ps.load('items/text,items/style');
+      ctx.document.load('changeTrackingMode');
+      await ctx.sync();
+      return {
+        url: Office.context.document.url || '(未保存)',
+        paragraphs: ps.items.length,
+        trackingMode: ctx.document.changeTrackingMode,
+        first: ps.items.slice(0, 5).map((p) => `[${p.style}] ${p.text.slice(0, 60)}`),
+      };
+    }),
+  settings: () => {
+    const s = getSettings();
+    return {
+      ...s,
+      providers: Object.fromEntries(
+        Object.entries(s.providers).map(([k, v]) => [k, { ...v, apiKey: v.apiKey ? `(已填，${v.apiKey.length} 位)` : '' }]),
+      ),
+    };
+  },
+};
+
+// 递归剔除可能出现的 Key 字段，并截断超长字符串（截图 base64 等）
+function sanitize(v: unknown, depth = 0): unknown {
+  if (depth > 8) return '…';
+  if (typeof v === 'string') return v.length > 4000 && !/^iVBOR/.test(v) ? v.slice(0, 4000) + `…(${v.length})` : v;
+  if (Array.isArray(v)) return v.map((x) => sanitize(x, depth + 1));
+  if (v && typeof v === 'object') {
+    return Object.fromEntries(
+      Object.entries(v).map(([k, x]) => [k, /apikey|authorization|x-api-key/i.test(k) ? '(隐藏)' : sanitize(x, depth + 1)]),
+    );
+  }
+  return v;
+}
+
+export function startDevBridge() {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  (async () => {
+    for (;;) {
+      try {
+        const host = encodeURIComponent(String(Office.context?.host ?? 'Unknown'));
+        const res = await fetch(`/__bridge/next?host=${host}`, { cache: 'no-store' });
+        if (res.status !== 200) continue;
+        const cmd = await res.json();
+        let out: { ok: boolean; value?: unknown; error?: string };
+        try {
+          const h = devApi[cmd.type];
+          if (!h) throw new Error(`未知命令：${cmd.type}（可用：${Object.keys(devApi).join(', ')}）`);
+          out = { ok: true, value: sanitize(await h(cmd.payload)) };
+        } catch (e: any) {
+          out = { ok: false, error: String(e?.stack ?? e?.message ?? e) };
+        }
+        await fetch('/__bridge/result', { method: 'POST', body: JSON.stringify({ id: cmd.id, ...out }) });
+      } catch {
+        await sleep(2000);
+      }
+    }
+  })();
+}

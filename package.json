@@ -1,0 +1,26 @@
+{
+  "name": "keynib",
+  "private": true,
+  "version": "0.0.1",
+  "description": "妙笔 Keynib — BYOK LLM assistant add-in for PowerPoint, Word and Excel",
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @keynib/taskpane",
+    "build": "npm run build -w @keynib/taskpane",
+    "typecheck": "tsc -p apps/taskpane/tsconfig.json && tsc -p packages/providers/tsconfig.json && tsc -p packages/core/tsconfig.json",
+    "certs": "office-addin-dev-certs install --days 365",
+    "validate": "office-addin-manifest validate manifest/manifest.dev.xml",
+    "sideload:mac": "node scripts/sideload-mac.mjs",
+    "probe:cors": "node scripts/cors-preflight.mjs",
+    "test": "node --test packages/*/test/ apps/*/test/"
+  },
+  "devDependencies": {
+    "office-addin-dev-certs": "^1.0.0",
+    "office-addin-manifest": "^1.0.0",
+    "typescript": "^5.6.0"
+  }
+}

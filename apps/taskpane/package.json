@@ -1,0 +1,26 @@
+{
+  "name": "@keynib/taskpane",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fluentui/react-components": "^9.54.0",
+    "@keynib/providers": "*",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "@keynib/core": "*",
+    "@fluentui/react-icons": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/office-js": "^1.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "vite": "^6.0.0"
+  }
+}
