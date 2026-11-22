@@ -64,6 +64,18 @@ export class PptChangeset {
 
   // slideIndexes 为当前（1 起）序号
   async beforeWrite(targets: number[] | 'all'): Promise<void> {
+    // 只读导出：网页版偶发暂时性 GeneralException，重试两次
+    for (let i = 0; ; i++) {
+      try {
+        return await this.snapshotNow(targets);
+      } catch (e: any) {
+        if (i >= 2 || e?.code !== 'GeneralException') throw e;
+        await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+      }
+    }
+  }
+
+  private async snapshotNow(targets: number[] | 'all'): Promise<void> {
     await PowerPoint.run(async (ctx) => {
       const slides = ctx.presentation.slides;
       slides.load('items/id');

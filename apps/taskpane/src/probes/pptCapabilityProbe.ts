@@ -89,6 +89,13 @@ export async function runPptCapabilityProbe(): Promise<StepResult[]> {
     s.shapes.addTextBox('Keynib probe', { left: 40, top: 40, width: 300, height: 40 });
     await ctx.sync();
   });
+  await step('加文本框（按序号定位 getItemAt）', async (ctx) => {
+    const s = ctx.presentation.slides;
+    s.load('items');
+    await ctx.sync();
+    ctx.presentation.slides.getItemAt(s.items.length - 1).shapes.addTextBox('Keynib probe 2', { left: 40, top: 260, width: 300, height: 40 });
+    await ctx.sync();
+  });
   await step('加形状 addGeometricShape', async (ctx) => {
     const s = await newest(ctx);
     s.shapes.addGeometricShape(PowerPoint.GeometricShapeType.rectangle, { left: 40, top: 100, width: 120, height: 60 });

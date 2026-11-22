@@ -15,11 +15,23 @@ async function getSlides(ctx: PowerPoint.RequestContext) {
   return slides.items;
 }
 
+// 按序号取页（getItemAt）。网页版实测：刚新建的幻灯片按 ID 查找（getItem）偶尔暂时失败，按序号则稳定。
 async function slideAt(ctx: PowerPoint.RequestContext, n: number) {
   const items = await getSlides(ctx);
-  const s = items[n - 1];
-  if (!s) throw new Error(`第 ${n} 页不存在（共 ${items.length} 页）`);
-  return s;
+  if (n < 1 || n > items.length) throw new Error(`第 ${n} 页不存在（共 ${items.length} 页）`);
+  return ctx.presentation.slides.getItemAt(n - 1);
+}
+
+// 只读工具遇到网页版的暂时性 GeneralException 时重试（写入工具不重试，避免重复插入）
+async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      if (i >= tries - 1 || e?.code !== 'GeneralException') throw e;
+      await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+    }
+  }
 }
 
 interface ShapeInfo {
@@ -117,6 +129,10 @@ function applyFont(font: PowerPoint.ShapeFont, f?: FontArgs) {
 }
 
 export function createPptTools(getChangeset: () => PptChangeset, getProfile: () => DeckProfile | null = () => null): ToolDef[] {
+  return pptToolList(getChangeset, getProfile).map((tool) => (tool.permission === 'R' ? { ...tool, run: (a: any) => withRetry(() => tool.run(a)) } : tool));
+}
+
+function pptToolList(getChangeset: () => PptChangeset, getProfile: () => DeckProfile | null): ToolDef[] {
   return [
     {
       name: 'lint_deck',
@@ -133,7 +149,7 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           const issues: LintIssue[] = [];
           for (const n of nums) {
             if (!all[n - 1]) continue;
-            issues.push(...lintSlide(n, await readShapes(ctx, all[n - 1]), profile));
+            issues.push(...lintSlide(n, await readShapes(ctx, ctx.presentation.slides.getItemAt(n - 1)), profile));
           }
           const errors = issues.filter((i) => i.severity === 'error').length;
           const warns = issues.filter((i) => i.severity === 'warn').length;
@@ -163,8 +179,8 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
           const nums = slides?.length ? slides : all.map((_, i) => i + 1);
           let changed = 0;
           for (const n of nums) {
-            const slide = all[n - 1];
-            if (!slide) continue;
+            if (!all[n - 1]) continue;
+            const slide = ctx.presentation.slides.getItemAt(n - 1);
             for (const sh of await readShapes(ctx, slide)) {
               if (!sh.text?.trim()) continue;
               const f = profileFontFor(sh, profile, { setBodySize: !!setBodySize });
@@ -188,13 +204,14 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
       run: () =>
         PowerPoint.run(async (ctx) => {
           const slides = await getSlides(ctx);
-          slides.forEach((s) => s.layout.load('name'));
+          const byIndex = slides.map((_, i) => ctx.presentation.slides.getItemAt(i));
+          byIndex.forEach((s) => s.layout.load('name'));
           await ctx.sync();
           const out = [];
           for (let i = 0; i < slides.length; i++) {
-            const shapes = await readShapes(ctx, slides[i]);
+            const shapes = await readShapes(ctx, byIndex[i]);
             const titled = shapes.find((s) => /title|标题/i.test(s.name) && s.text) ?? shapes.find((s) => s.text);
-            out.push({ slide: i + 1, layout: slides[i].layout.name, title: titled?.text?.slice(0, 60) ?? '', shapes: shapes.length });
+            out.push({ slide: i + 1, layout: byIndex[i].layout.name, title: titled?.text?.slice(0, 60) ?? '', shapes: shapes.length });
           }
           return { text: json(out), summary: t('共 {n} 页', { n: slides.length }) };
         }),
@@ -291,17 +308,18 @@ export function createPptTools(getChangeset: () => PptChangeset, getProfile: () 
         return PowerPoint.run(async (ctx) => {
           ctx.presentation.slides.add(layoutId ? { layoutId } : undefined);
           await ctx.sync();
-          let items = await getSlides(ctx);
-          let slide = items[items.length - 1];
-          cs.noteCreated(slide.id);
-          if (position && position >= 1 && position < items.length) {
-            slide.moveTo(position - 1);
+          const count = (await getSlides(ctx)).length;
+          const added = ctx.presentation.slides.getItemAt(count - 1);
+          added.load('id');
+          await ctx.sync();
+          cs.noteCreated(added.id);
+          let n = count;
+          if (position && position >= 1 && position < count) {
+            added.moveTo(position - 1);
             await ctx.sync();
-            items = await getSlides(ctx);
+            n = position;
           }
-          const n = items.findIndex((s) => s.id === slide.id) + 1;
-          slide = items[n - 1];
-          const shapes = await readShapes(ctx, slide, false);
+          const shapes = await readShapes(ctx, ctx.presentation.slides.getItemAt(n - 1), false);
           return {
             text: json({ slide: n, placeholders: shapes.map(({ id, name, left, top, width, height }) => ({ id, name, left, top, width, height })) }),
             summary: t('新建第 {n} 页', { n }),
