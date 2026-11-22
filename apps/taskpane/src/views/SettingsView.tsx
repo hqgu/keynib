@@ -78,6 +78,8 @@ const useStyles = makeStyles({
   code: { fontFamily: tokens.fontFamilyMonospace, fontSize: '11px' },
 });
 
+declare const __BUILD_ID__: string;
+
 const ALL_IDS = [...PROVIDER_PRESETS.map((p) => p.id), CUSTOM_ID];
 
 export function SettingsView({ onOpenDiagnostics, welcome }: { onOpenDiagnostics: () => void; welcome?: boolean }) {
@@ -164,7 +166,7 @@ export function SettingsView({ onOpenDiagnostics, welcome }: { onOpenDiagnostics
           />
         </Field>
         <Link onClick={onOpenDiagnostics}>{t('诊断工具（环境、直连、往返测试）')}</Link>
-        <Text size={200}>{t('妙笔 Keynib v0.1.0（预览版）· MIT 开源')}</Text>
+        <Text size={200}>{t('妙笔 Keynib v0.1.0（预览版）· MIT 开源')} · build {typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}</Text>
       </div>
     </div>
   );
