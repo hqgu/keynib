@@ -16,7 +16,7 @@
     "validate": "office-addin-manifest validate manifest/manifest.dev.xml && office-addin-manifest validate manifest/manifest.prod.xml",
     "sideload:mac": "node scripts/sideload-mac.mjs",
     "probe:cors": "node scripts/cors-preflight.mjs",
-    "test": "node --test packages/*/test/ apps/*/test/",
+    "test": "node --test \"packages/*/test/*.test.ts\" \"apps/*/test/*.test.ts\"",
     "manifest": "node scripts/gen-manifest.mjs"
   },
   "devDependencies": {
