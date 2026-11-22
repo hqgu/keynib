@@ -128,13 +128,15 @@ export function ChangeCard({
   modified,
   created,
   modifiedIndexes,
+  label,
   undone,
   canUndo,
   onUndo,
 }: {
-  modified: number;
-  created: number;
-  modifiedIndexes: number[];
+  modified?: number;
+  created?: number;
+  modifiedIndexes?: number[];
+  label?: string; // 非 PPT 时直接给出描述
   undone: boolean;
   canUndo: boolean;
   onUndo: () => Promise<void>;
@@ -144,8 +146,13 @@ export function ChangeCard({
   const [err, setErr] = useState('');
   return (
     <div className={s.changeCard}>
-      <b>本轮变更</b>　新增 {created} 页 · 修改 {modified} 页
-      {modifiedIndexes.length > 0 && <span>（第 {modifiedIndexes.join('、')} 页）</span>}
+      <b>本轮变更</b>　
+      {label ?? (
+        <>
+          新增 {created} 页 · 修改 {modified} 页
+          {modifiedIndexes && modifiedIndexes.length > 0 && <span>（第 {modifiedIndexes.join('、')} 页）</span>}
+        </>
+      )}
       <div className={s.row}>
         {undone ? (
           <span>✓ 已撤销</span>
@@ -171,7 +178,7 @@ export function ChangeCard({
         {!canUndo && !undone && <span>只能撤销最近一轮</span>}
         {err && <span className={s.err}>撤销失败：{err}</span>}
       </div>
-      {!undone && canUndo && <div style={{ marginTop: 4, color: tokens.colorNeutralForeground3 }}>撤销会把这些页恢复到本轮开始前，期间你手动做的修改也会被还原。关闭或刷新面板后无法再点此撤销，届时可在 PowerPoint 中按 ⌘Z / Ctrl+Z。</div>}
+      {!undone && canUndo && <div style={{ marginTop: 4, color: tokens.colorNeutralForeground3 }}>撤销会恢复到本轮开始前（新建的结果表会被删除），期间你手动做的修改也会被还原。关闭或刷新面板后无法再点此撤销，届时可按 ⌘Z / Ctrl+Z。</div>}
     </div>
   );
 }

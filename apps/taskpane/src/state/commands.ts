@@ -24,6 +24,7 @@ export function lintPrompt(pubmed: boolean): string {
 const PPT = ['PowerPoint'];
 const SEL = '当前选中的内容（没有选中时：PPT 为当前页，Word 为光标所在段落）';
 const WORD = ['Word'];
+const XL = ['Excel'];
 
 export function builtinCommands(opts: { pubmed: boolean }): SlashCommand[] {
   const c = (o: Omit<SlashCommand, 'builtin'>): SlashCommand => ({ ...o, builtin: true });
@@ -48,6 +49,14 @@ export function builtinCommands(opts: { pubmed: boolean }): SlashCommand[] {
       description: '在当前页后插入一页对比表', prompt: '在当前页后面插入一页对比表，比较：' }),
     c({ id: 'summary', name: '小结页', aliases: ['xj', 'summary'], hosts: PPT, autoSend: true,
       description: '根据全部内容生成一页小结', prompt: '通读整套幻灯片，在最后追加一页“小结”，用 3–5 条要点概括核心内容。' }),
+    c({ id: 'describe', name: '描述统计', aliases: ['ms', 'describe', 'stats'], hosts: XL, autoSend: true,
+      description: '对当前数据做描述统计（公式计算）', prompt: '对当前数据做描述统计：数值变量报告 n、缺失、均数 ± 标准差、中位数（四分位数）、最小 / 最大值，分类变量报告频数与百分比；结果放到新建的“描述统计”表，全部用公式计算。' }),
+    c({ id: 'compare', name: '分组比较', aliases: ['fz', 'compare', 'group'], hosts: XL, autoSend: false,
+      description: '按分组变量比较各指标', prompt: '按以下分组变量比较各指标（新建结果表，公式计算，并画分组箱线图）：' }),
+    c({ id: 'chart', name: '画图', aliases: ['ht', 'chart', 'plot'], hosts: XL, autoSend: false,
+      description: '为指定变量画合适的图', prompt: '为以下变量画合适的图（放在新建结果表，写清标题和坐标轴单位）：' }),
+    c({ id: 'pivot', name: '数据透视', aliases: ['ts', 'pivot'], hosts: XL, autoSend: false,
+      description: '按指定字段生成数据透视表', prompt: '生成数据透视表：行 = ，值 = （平均值 / 计数）' }),
     c({ id: 'lint', name: '规范检查', aliases: ['gf', 'lint', 'check'], hosts: PPT, autoSend: true, requires: 'profile',
       description: '按演示规范检查并修正格式', prompt: lintPrompt(opts.pubmed) }),
     c({ id: 'cite', name: '核对引用', aliases: ['hd', 'cite', 'verify'], autoSend: true, requires: 'pubmed',

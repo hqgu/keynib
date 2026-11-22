@@ -11,6 +11,9 @@ import { PptChangeset } from '../hosts/powerpoint/changeset';
 import { WordRevisions } from '../hosts/word/revisions';
 import { createWordTools, wordContext } from '../hosts/word/tools';
 import { wordSystemPrompt } from '../hosts/word/prompt';
+import { ExcelChangeset } from '../hosts/excel/changeset';
+import { createExcelTools, excelContext } from '../hosts/excel/tools';
+import { excelSystemPrompt } from '../hosts/excel/prompt';
 import { createPptTools, pptContext } from '../hosts/powerpoint/tools';
 import { pptSystemPrompt } from '../hosts/powerpoint/prompt';
 import { ChangeCard, ConfirmCard, Reasoning, RevisionCard, StepList, type StepView } from '../components/Cards';
@@ -71,6 +74,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
   const host = currentHost();
   const isPpt = host === 'PowerPoint';
   const isWord = host === 'Word';
+  const isExcel = host === 'Excel';
 
   const [session, setSession] = useState<Session | null>(initialSession ?? null);
   const [messages, setMessages] = useState<ChatMessage[]>(initialSession?.messages ?? []);
@@ -79,7 +83,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState<{ description: string; resolve: (ok: boolean) => void } | null>(null);
-  const [changesets, setChangesets] = useState<Record<number, PptChangeset | WordRevisions>>({});
+  const [changesets, setChangesets] = useState<Record<number, PptChangeset | WordRevisions | ExcelChangeset>>({});
   const [, force] = useState(0);
   const [input, setInput] = useState('');
   const [menuIndex, setMenuIndex] = useState(0);
@@ -102,7 +106,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
   }, [changesets, messages, running]);
 
   const toolLabels = useMemo(
-    () => Object.fromEntries([...createPptTools(() => new PptChangeset()), ...createWordTools(), ...pubmedTools()].map((t) => [t.name, t.label])),
+    () => Object.fromEntries([...createPptTools(() => new PptChangeset()), ...createWordTools(), ...createExcelTools(() => new ExcelChangeset()), ...pubmedTools()].map((t) => [t.name, t.label])),
     [],
   );
 
@@ -138,9 +142,9 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
         usage: { inputTokens: 0, outputTokens: 0 },
       };
 
-    let cs: PptChangeset | WordRevisions | null = null;
+    let cs: PptChangeset | WordRevisions | ExcelChangeset | null = null;
     let tools: ToolDef[] = [];
-    let system = '你是"妙笔 Keynib"，一个 Office 助手。当前宿主暂未开放编辑工具（Excel 将在 M3 支持），请直接用文字回答。';
+    let system = '你是"妙笔 Keynib"，一个 Office 助手。当前宿主暂未开放编辑工具，请直接用文字回答。';
     if (isPpt) {
       const ppt = new PptChangeset();
       cs = ppt;
@@ -148,6 +152,13 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
       if (settings.pubmed) tools = [...tools, ...pubmedTools()];
       const ctx = await pptContext().catch(() => '（无法读取文档概况）');
       system = pptSystemPrompt(ctx, active.cfg.vision, eventsRef.current, activeProfile(settings), settings.pubmed);
+      eventsRef.current = [];
+    } else if (isExcel) {
+      const xl = new ExcelChangeset();
+      cs = xl;
+      tools = createExcelTools(() => xl);
+      const ctx = await excelContext().catch(() => '（无法读取工作簿概况）');
+      system = excelSystemPrompt(ctx, eventsRef.current);
       eventsRef.current = [];
     } else if (isWord) {
       tools = createWordTools();
@@ -236,7 +247,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
     return {
       stoppedBy: result.stoppedBy,
       error: result.error,
-      changes: !cs || cs.isEmpty ? null : cs instanceof PptChangeset ? cs.summary() : { revisions: cs.count },
+      changes: !cs || cs.isEmpty ? null : cs instanceof WordRevisions ? { revisions: cs.count } : cs.summary(),
       reply: result.messages.filter((m) => m.role === 'assistant').map((m) => m.content).join('\n').trim(),
       steps: result.messages.flatMap((m) => (m.role === 'tool' ? [`${m.isError ? '✗' : '✓'} ${m.name}: ${m.content.slice(0, 160)}`] : [])),
       usage: { input: usage.inputTokens - sess.usage.inputTokens, output: usage.outputTokens - sess.usage.outputTokens },
@@ -391,6 +402,20 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
             onReject={() => undoTurn(start)}
           />,
         );
+      } else if (cs instanceof ExcelChangeset && !cs.isEmpty) {
+        const sum = cs.summary();
+        rendered.push(
+          <ChangeCard
+            key={`cs${start}`}
+            label={[
+              sum.createdSheets.length ? `新建 ${sum.createdSheets.map((n) => `「${n}」`).join('')}` : '',
+              sum.overwritten.length ? `修改原表 ${sum.overwritten.join('、')}` : '',
+            ].filter(Boolean).join(' · ')}
+            undone={cs.undone}
+            canUndo={start === lastChangeTurn && !running}
+            onUndo={() => undoTurn(start)}
+          />,
+        );
       } else if (cs instanceof PptChangeset && !cs.isEmpty) {
         rendered.push(
           <ChangeCard
@@ -410,7 +435,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
   return (
     <div className={s.root}>
       <div className={s.scroll} ref={scrollRef}>
-        {!isPpt && !isWord && host !== 'Unknown' && (
+        {!isPpt && !isWord && !isExcel && host !== 'Unknown' && (
           <MessageBar intent="info">
             <MessageBarBody>{host} 的编辑工具将在后续版本开放，目前只能对话。</MessageBarBody>
           </MessageBar>
@@ -466,7 +491,7 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
             setMenuClosed(false);
           }}
           onKeyDown={onKey}
-          placeholder={isPpt ? '告诉妙笔要对幻灯片做什么… 输入 / 调出快捷指令' : isWord ? '告诉妙笔要怎么改这篇文档… 输入 / 调出快捷指令' : '输入问题… 输入 / 调出快捷指令'}
+          placeholder={isPpt ? '告诉妙笔要对幻灯片做什么… 输入 / 调出快捷指令' : isWord ? '告诉妙笔要怎么改这篇文档… 输入 / 调出快捷指令' : isExcel ? '告诉妙笔要分析什么、画什么图… 输入 / 调出快捷指令' : '输入问题… 输入 / 调出快捷指令'}
           resize="vertical"
           textarea={{ rows: 3, ref: inputRef }}
           aria-autocomplete="list"

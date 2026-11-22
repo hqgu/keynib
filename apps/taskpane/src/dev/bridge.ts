@@ -8,6 +8,9 @@ import { PROVIDER_PRESETS } from '@keynib/providers';
 import { testConnection } from '@keynib/providers';
 import { readShapes } from '../hosts/powerpoint/tools';
 import { runWordProbe } from '../probes/wordProbe';
+import { runExcelProbe } from '../probes/excelProbe';
+import { runExcelUndoSelfTest } from '../probes/excelUndoSelfTest';
+import { SEED_HEADER, seedTrial } from '../hosts/excel/seed';
 
 type Handler = (payload: any) => Promise<unknown> | unknown;
 
@@ -83,6 +86,50 @@ export const devApi: Record<string, Handler> = {
       };
     }),
   wordProbe: () => runWordProbe(),
+  excelProbe: () => runExcelProbe(),
+  excelSelftest: (n?: number) => runExcelUndoSelfTest(n ?? 20),
+  // 测试用：把固定种子的 200 例试验数据写入 Sheet1（仅当 Sheet1 为空）
+  excelSeed: () =>
+    Excel.run(async (ctx) => {
+      const ws = ctx.workbook.worksheets.getItem('Sheet1');
+      const used = ws.getUsedRangeOrNullObject(true);
+      await ctx.sync();
+      if (!used.isNullObject) return 'Sheet1 非空，未写入';
+      const rows = seedTrial();
+      ws.getRange(`A1:F${rows.length + 1}`).values = [SEED_HEADER, ...rows];
+      ws.getRange('A1:F1').format.font.bold = true;
+      await ctx.sync();
+      return `已写入 ${rows.length} 行`;
+    }),
+  // 只读：某表已用区域的 formulas 与 values（用于核对结果）
+  excelSheet: (name: string) =>
+    Excel.run(async (ctx) => {
+      const used = ctx.workbook.worksheets.getItem(name).getUsedRangeOrNullObject(true);
+      used.load('address,formulas,values');
+      const charts = ctx.workbook.worksheets.getItem(name).charts;
+      charts.load('items/name,items/chartType');
+      await ctx.sync();
+      return used.isNullObject ? { empty: true } : { address: used.address, formulas: used.formulas, values: used.values, charts: charts.items.map((c) => c.chartType) };
+    }),
+  // 只读：Excel 工作簿概况
+  book: () =>
+    Excel.run(async (ctx) => {
+      const sheets = ctx.workbook.worksheets;
+      sheets.load('items/name');
+      await ctx.sync();
+      const out = [];
+      for (const ws of sheets.items) {
+        const used = ws.getUsedRangeOrNullObject(true);
+        used.load('address,rowCount,columnCount');
+        const charts = ws.charts;
+        charts.load('items/name');
+        const tables = ws.tables;
+        tables.load('items/name');
+        await ctx.sync();
+        out.push({ sheet: ws.name, used: used.isNullObject ? null : `${used.address}（${used.rowCount}×${used.columnCount}）`, charts: charts.items.length, tables: tables.items.length });
+      }
+      return { url: Office.context.document.url || '(未保存)', sheets: out };
+    }),
   // 只读：Word 当前文本（不含已删除文字）、原始文本、修订列表、修订模式
   wordState: () =>
     Word.run(async (ctx) => {
