@@ -51,6 +51,9 @@ const useStyles = makeStyles({
 
 type Status = 'idle' | 'running' | 'done';
 
+// 网页版每次插回 / 删除都要与服务器同步，20 次太慢，改为 5 次
+const SELFTEST_RUNS = typeof Office !== 'undefined' && Office.context?.platform === Office.PlatformType.OfficeOnline ? 5 : 20;
+
 export function Diagnostics() {
   const s = useStyles();
   const env: EnvInfo | null = useMemo(() => (Office.context?.requirements ? collectEnv() : null), []);
@@ -91,7 +94,7 @@ export function Diagnostics() {
     setSelfTest(null);
     setSelfTestProgress(0);
     try {
-      const r = await runUndoSelfTest(20, setSelfTestProgress);
+      const r = await runUndoSelfTest(SELFTEST_RUNS, setSelfTestProgress);
       if (r.formatting) setUndoFormatting(r.formatting);
       setSelfTest(r);
     } catch (e: any) {
@@ -279,11 +282,11 @@ export function Diagnostics() {
       {host === 'PowerPoint' && (
         <Card>
           <CardHeader
-            header={<Text weight="semibold">“撤销本轮”自测（20 次）</Text>}
+            header={<Text weight="semibold">“撤销本轮”自测（{SELFTEST_RUNS} 次）</Text>}
             description={<Text size={200}>请在空白演示文稿中运行。模拟改第 1 页、插页、移页、删页后撤销，比较前后是否完全一致。约需 1–2 分钟，期间幻灯片会闪动。</Text>}
           />
           <Button appearance="primary" onClick={runSelfTest} disabled={selfTestProgress !== null}>
-            {selfTestProgress !== null ? `运行中… ${selfTestProgress}/20` : '开始自测'}
+            {selfTestProgress !== null ? `运行中… ${selfTestProgress}/${SELFTEST_RUNS}` : '开始自测'}
           </Button>
           {selfTest && (
             <MessageBar intent={selfTest.ok ? 'success' : 'error'}>
