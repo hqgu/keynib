@@ -33,9 +33,8 @@ setTimeout(() => {
   const reloaded = new URL(location.href).searchParams.has('v');
   el.innerHTML = `<div style="padding:16px;font:13px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif">
     <h3 style="margin:0 0 8px;color:#b42318">面板未能启动 / Pane failed to start</h3>
-    <p>Office 未能完成面板初始化。请关闭面板后重新打开；仍不行请截图反馈。<br>Office did not initialize the pane. Close and reopen it; if it persists, send a screenshot.</p>
-    <pre style="background:#f6f8fa;padding:8px;border-radius:6px;font-size:11px;white-space:pre-wrap">build ${__BUILD_ID__} · auto-update reload: ${reloaded ? 'yes' : 'no'}</pre>
-    <button onclick="location.reload()" style="padding:6px 12px">重新加载 / Reload</button></div>`;
+    <p>Office 未能完成面板初始化。请点面板右上角 × 关闭后重新打开；仍不行请刷新整个网页，再截图反馈。<br>Office did not initialize the pane. Close it (×) and reopen it; if it persists, reload the page and send a screenshot.</p>
+    <pre style="background:#f6f8fa;padding:8px;border-radius:6px;font-size:11px;white-space:pre-wrap">build ${__BUILD_ID__} · auto-update reload: ${reloaded ? 'yes' : 'no'}</pre></div>`;
 }, 10000);
 
 // 等 Office.js 就绪后再渲染；在普通浏览器打开时 host 为 null，仍可跑 CORS 探针
