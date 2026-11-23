@@ -173,7 +173,7 @@ export function ChangeCard({
               try {
                 await onUndo();
               } catch (e: any) {
-                setErr(e?.message ?? String(e));
+                setErr(`${e?.message ?? String(e)}${e?.debugInfo?.errorLocation ? ` [${e.debugInfo.errorLocation}]` : ''}`);
               }
               setBusy(false);
             }}
@@ -226,7 +226,7 @@ export function RevisionCard({
     try {
       await fn();
     } catch (e: any) {
-      setErr(e?.message ?? String(e));
+      setErr(`${e?.message ?? String(e)}${e?.debugInfo?.errorLocation ? ` [${e.debugInfo.errorLocation}]` : ''}`);
     }
     setBusy('');
   };

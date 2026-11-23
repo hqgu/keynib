@@ -22,7 +22,7 @@ import { collectEnv, type EnvInfo } from '../probes/env';
 import { runStorageProbe, type StorageProbeResult } from '../probes/storage';
 import { runPptRoundtrip, type RoundtripResult } from '../probes/pptRoundtrip';
 import { markerExists, removeMarker, writeMarker } from '../probes/undo';
-import { runUndoSelfTest, type UndoSelfTestResult } from '../probes/undoSelfTest';
+import { describeOfficeError, runUndoSelfTest, type UndoSelfTestResult } from '../probes/undoSelfTest';
 import { runPptCapabilityProbe, type StepResult } from '../probes/pptCapabilityProbe';
 import { setUndoFormatting } from '../hosts/powerpoint/changeset';
 
@@ -95,7 +95,7 @@ export function Diagnostics() {
       if (r.formatting) setUndoFormatting(r.formatting);
       setSelfTest(r);
     } catch (e: any) {
-      setSelfTest({ ok: false, runs: 0, passed: 0, details: [`出错：${e?.message ?? e}`] });
+      setSelfTest({ ok: false, runs: 0, passed: 0, details: [`出错：${describeOfficeError(e)}`] });
     }
     setSelfTestProgress(null);
   }
