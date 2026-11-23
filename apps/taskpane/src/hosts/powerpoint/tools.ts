@@ -325,7 +325,8 @@ function pptToolList(getChangeset: () => PptChangeset, getProfile: () => DeckPro
           cs.noteCreated(added.id);
           let n = count;
           if (position && position >= 1 && position < count) {
-            added.moveTo(position - 1);
+            // 已读取过 ID 的对象，后续操作会改为按 ID 查找（网页版对新页会失败），所以重新按序号取
+            ctx.presentation.slides.getItemAt(count - 1).moveTo(position - 1);
             await ctx.sync();
             n = position;
           }

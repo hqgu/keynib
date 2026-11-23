@@ -122,7 +122,8 @@ async function oneTurnSteps(cs: PptChangeset): Promise<void> {
     s.load('id');
     await ctx.sync();
     cs.noteCreated(s.id);
-    s.moveTo(1);
+    // 读过 ID 后再操作同一对象会改为按 ID 查找（网页版对新页会失败），所以重新按序号取
+    slides.getItemAt(slides.items.length - 1).moveTo(1);
     await ctx.sync();
   }));
 
