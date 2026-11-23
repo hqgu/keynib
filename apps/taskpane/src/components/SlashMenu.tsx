@@ -43,7 +43,11 @@ export function SlashMenu({
 }) {
   const s = useStyles();
   const activeRef = useRef<HTMLDivElement>(null);
-  useEffect(() => activeRef.current?.scrollIntoView({ block: 'nearest' }), [index]);
+  // 用花括号包住、不返回值：新版 Chrome 的 scrollIntoView() 返回 Promise，
+  // 若作为 effect 的返回值，React 会把它当清理函数调用而报 "is not a function"，整个面板崩溃
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [index]);
   return (
     <div className={s.menu} role="listbox" aria-label={t('快捷指令')}>
       {items.length === 0 && <div className={s.empty}>{t('没有匹配的指令（可在设置中添加自定义指令）')}</div>}
