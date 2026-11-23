@@ -121,14 +121,20 @@ export class PptChangeset {
         return slides.items.findIndex((s) => s.id === id);
       };
 
-      // 1. 删除本轮新建的页
-      for (const id of this.createdIds) {
-        const i = await indexOf(id);
-        if (i >= 0) {
-          slides.getItemAt(i).delete();
-          await ctx.sync();
-        }
+      // 1. 删除本轮新建的页。网页版实测：新建页先拿到临时 ID，之后会换成正式 ID，
+      //    所以不能靠新建时记下的 ID 去找；改为"本轮开始时不存在的页 = 本轮新建"（已有页的 ID 稳定）。
+      slides.load('items/id');
+      await ctx.sync();
+      const original = this.originalOrder ? new Set(this.originalOrder) : null;
+      const newIdx = slides.items.map((x, i) => (original ? !original.has(x.id) : this.createdIds.has(x.id)) ? i : -1).filter((i) => i >= 0);
+      // 保护：判定为新建的页数必须等于本轮实际新建数，否则（如上一轮的新页 ID 尚未稳定）宁可不删，避免误删用户的页
+      if (newIdx.length !== this.createdIds.size) {
+        throw new Error(
+          `无法可靠识别本轮新建的幻灯片（识别到 ${newIdx.length} 页，本轮新建 ${this.createdIds.size} 页），为避免误删已停止撤销，请手动检查`,
+        );
       }
+      for (const i of [...newIdx].reverse()) slides.getItemAt(i).delete();
+      await ctx.sync();
 
       // 2. 按原位置从前往后还原被修改 / 删除 / 移动过的页
       const restore = [...this.snapshots.entries()].sort((a, b) => a[1].index - b[1].index);

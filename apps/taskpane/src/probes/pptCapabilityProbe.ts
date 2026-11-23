@@ -36,10 +36,12 @@ export async function runPptCapabilityProbe(): Promise<StepResult[]> {
     return slides.items[slides.items.length - 1];
   };
 
+  const initial = new Set<string>();
   await step('读取幻灯片列表 slides.load', async (ctx) => {
     const s = ctx.presentation.slides;
     s.load('items/id');
     await ctx.sync();
+    s.items.forEach((x) => initial.add(x.id));
     return `${s.items.length} 页`;
   });
   await step('读取选中页 getSelectedSlides', async (ctx) => {
@@ -133,14 +135,31 @@ export async function runPptCapabilityProbe(): Promise<StepResult[]> {
     s.load('index');
     await ctx.sync();
   });
-  await step('删除测试页 delete', async (ctx) => {
-    for (const id of created) {
-      const s = ctx.presentation.slides.getItemOrNullObject(id);
-      await ctx.sync();
-      if (!s.isNullObject) s.delete();
-    }
+  await step('新建页 ID 稳定性（0 / 1 / 3 秒）', async (ctx) => {
+    const slides = ctx.presentation.slides;
+    slides.add();
     await ctx.sync();
-    return `${created.length} 页`;
+    const read = async () => {
+      slides.load('items/id');
+      await ctx.sync();
+      return slides.items[slides.items.length - 1].id;
+    };
+    const t0 = await read();
+    await new Promise((r) => setTimeout(r, 1000));
+    const t1 = await read();
+    await new Promise((r) => setTimeout(r, 2000));
+    const t3 = await read();
+    created.push(t3);
+    return `${t0} → ${t1} → ${t3}${t0 === t3 ? '（稳定）' : '（会变化）'}`;
+  });
+  await step('删除测试页 delete', async (ctx) => {
+    const slides = ctx.presentation.slides;
+    slides.load('items/id');
+    await ctx.sync();
+    const extra = slides.items.map((x, i) => (initial.has(x.id) ? -1 : i)).filter((i) => i >= 0);
+    for (const i of extra.reverse()) slides.getItemAt(i).delete();
+    await ctx.sync();
+    return `${extra.length} 页`;
   });
   return out;
 }
