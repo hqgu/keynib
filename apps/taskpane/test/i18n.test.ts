@@ -8,7 +8,7 @@ import { EN } from '../src/i18n/en.ts';
 import { setLang, t } from '../src/i18n/index.ts';
 
 const SRC = path.resolve(import.meta.dirname, '../src');
-const UI_FILES = ['App.tsx', 'views/ChatView.tsx', 'views/SettingsView.tsx', 'views/HistoryView.tsx', 'views/ProfileSection.tsx', 'views/CommandSection.tsx', 'components/Cards.tsx', 'components/SlashMenu.tsx'];
+const UI_FILES = ['App.tsx', 'views/ChatView.tsx', 'views/SettingsView.tsx', 'views/HistoryView.tsx', 'views/ProfileSection.tsx', 'views/CommandSection.tsx', 'components/Cards.tsx', 'components/SlashMenu.tsx', 'components/ErrorBoundary.tsx'];
 const TOOL_FILES = ['hosts/powerpoint/tools.ts', 'hosts/word/tools.ts', 'hosts/excel/tools.ts'];
 const CJK = /[一-龥]/;
 

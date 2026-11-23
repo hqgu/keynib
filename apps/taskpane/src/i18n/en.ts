@@ -269,6 +269,9 @@ export const EN: Record<string, string> = {
   '覆盖原表「{sheet}」从 {cell} 开始的 {n} 个单元格（可撤销）': 'Overwrite {n} cells on original sheet "{sheet}" starting at {cell} (undoable)',
 
   '智谱 Zhipu': 'Zhipu AI',
+  '面板出错了': 'Something went wrong',
+  '请截图发给开发者，然后点下面的按钮重新加载。': 'Please take a screenshot for the developer, then reload the pane.',
+  '重新加载面板': 'Reload pane',
 
   // —— 工具：PubMed（core 包中的 label） ——
   '检索 PubMed': 'Search PubMed',

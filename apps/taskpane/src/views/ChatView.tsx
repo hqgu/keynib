@@ -511,6 +511,20 @@ export function ChatView({ initialSession, onOpenSettings }: Props) {
           aria-expanded={!!menuItems}
         />
         <div className={s.bar}>
+          <Button
+            size="small"
+            appearance="subtle"
+            aria-label={t('快捷指令')}
+            title={t('快捷指令')}
+            onClick={() => {
+              setInput('/');
+              setMenuIndex(0);
+              setMenuClosed(false);
+              requestAnimationFrame(() => inputRef.current?.focus());
+            }}
+          >
+            /
+          </Button>
           <Select
             size="small"
             value={settings.mode}
