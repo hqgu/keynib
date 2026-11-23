@@ -77,8 +77,11 @@ export const EN: Record<string, string> = {
   '设为当前使用': 'Use this provider',
   '该模型无法调用工具，只能聊天，不能编辑文档。请换一个支持工具调用的模型。':
     'This model cannot call tools, so it can chat but not edit documents. Choose a model that supports tool calling.',
-  '配置码已生成（已尝试复制到剪贴板）。到另一个 Office 程序的设置页粘贴导入。':
-    'Config code generated (copied to clipboard if allowed). Paste it into Settings in another Office app to import.',
+  '配置码已复制。到另一个 Office 程序的设置页粘贴导入。': 'Config code copied. Paste it into Settings in another Office app to import.',
+  '配置码已生成。浏览器不允许自动复制，请点下方文本框、全选后按 ⌘C / Ctrl+C。':
+    'Config code generated. The browser blocked automatic copying—click the box below, select all and press ⌘C / Ctrl+C.',
+  '浏览器不允许自动复制，请全选后按 ⌘C / Ctrl+C': 'The browser blocked automatic copying—select all and press ⌘C / Ctrl+C',
+  '已复制 ✓': 'Copied ✓',
   '导入成功。': 'Imported.',
   '配置码（在 PowerPoint / Word / Excel 之间同步设置）': 'Config code (sync settings between PowerPoint / Word / Excel)',
   '包含 API Key（需设置口令加密）': 'Include API keys (requires a passphrase)',

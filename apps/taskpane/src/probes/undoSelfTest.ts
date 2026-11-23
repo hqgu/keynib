@@ -49,7 +49,8 @@ async function ensureSlides(): Promise<string[]> {
       await ctx.sync();
       slides.load('items/id');
       await ctx.sync();
-      const s = slides.items[slides.items.length - 1];
+      const s = slides.getItemAt(slides.items.length - 1);
+      s.load('id');
       s.shapes.addTextBox(`自测页 ${String.fromCharCode(65 + i)}`, { left: 80, top: 80, width: 400, height: 60 });
       await ctx.sync();
       added.push(s.id);
@@ -62,11 +63,15 @@ async function removeSlides(ids: string[]) {
   if (!ids.length) return;
   await PowerPoint.run(async (ctx) => {
     for (const id of ids) {
-      const s = ctx.presentation.slides.getItemOrNullObject(id);
+      const slides = ctx.presentation.slides;
+      slides.load('items/id');
       await ctx.sync();
-      if (!s.isNullObject) s.delete();
+      const i = slides.items.findIndex((x) => x.id === id);
+      if (i >= 0) {
+        slides.getItemAt(i).delete();
+        await ctx.sync();
+      }
     }
-    await ctx.sync();
   });
 }
 
@@ -90,7 +95,9 @@ async function oneTurn(formatting: InsertFormatting): Promise<void> {
     await ctx.sync();
     slides.load('items/id');
     await ctx.sync();
-    const s = slides.items[slides.items.length - 1];
+    const s = slides.getItemAt(slides.items.length - 1);
+    s.load('id');
+    await ctx.sync();
     cs.noteCreated(s.id);
     s.moveTo(1);
     await ctx.sync();

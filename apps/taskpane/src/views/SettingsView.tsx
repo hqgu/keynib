@@ -36,6 +36,7 @@ import {
 } from '../state/settings';
 import { clearSessions } from '../state/sessions';
 import { ProfileSection } from './ProfileSection';
+import { copyText } from '../components/copy';
 import { m, t, type LangSetting } from '../i18n';
 import { CommandSection } from './CommandSection';
 
@@ -336,8 +337,13 @@ function ConfigCodeSection() {
     try {
       const c = await exportConfigCode(includeKeys, pass);
       setCode(c);
-      await navigator.clipboard?.writeText(c).catch(() => {});
-      setMsg({ ok: true, text: t('配置码已生成（已尝试复制到剪贴板）。到另一个 Office 程序的设置页粘贴导入。') });
+      const copied = await copyText(c);
+      setMsg({
+        ok: true,
+        text: copied
+          ? t('配置码已复制。到另一个 Office 程序的设置页粘贴导入。')
+          : t('配置码已生成。浏览器不允许自动复制，请点下方文本框、全选后按 ⌘C / Ctrl+C。'),
+      });
     } catch (e: any) {
       setMsg({ ok: false, text: e.message });
     }

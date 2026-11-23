@@ -1,6 +1,7 @@
 // 诊断页（M0 探针）：环境、直连、存储、PPT 往返、撤销；可导出 JSON 报告
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
+import { copyText } from '../components/copy';
 import {
   Badge,
   Button,
@@ -81,6 +82,8 @@ export function Diagnostics() {
   const [undoMsg, setUndoMsg] = useState<string>('');
   const [undoResult, setUndoResult] = useState<'reverted' | 'kept' | null>(null);
 
+  const reportRef = useRef<HTMLTextAreaElement>(null);
+  const [copyMsg, setCopyMsg] = useState('');
   const [selfTest, setSelfTest] = useState<UndoSelfTestResult | null>(null);
   const [selfTestProgress, setSelfTestProgress] = useState<number | null>(null);
 
@@ -333,8 +336,11 @@ export function Diagnostics() {
 
       <Card>
         <CardHeader header={<Text weight="semibold">探针报告（JSON）</Text>} />
-        <Textarea value={report} readOnly resize="vertical" textarea={{ className: s.mono, rows: 8 }} />
-        <Button onClick={() => navigator.clipboard?.writeText(report)}>复制报告</Button>
+        <Textarea value={report} readOnly resize="vertical" textarea={{ className: s.mono, rows: 8, ref: reportRef }} />
+        <div className={s.row}>
+          <Button onClick={async () => setCopyMsg((await copyText(report, reportRef.current)) ? '已复制 ✓' : '浏览器不允许自动复制：报告已全选，请按 ⌘C / Ctrl+C')}>复制报告</Button>
+          {copyMsg && <Text size={200}>{copyMsg}</Text>}
+        </div>
       </Card>
     </div>
   );

@@ -84,11 +84,11 @@ export class PptChangeset {
       if (!this.originalOrder) this.originalOrder = slides.items.map((s) => s.id);
       const exports: { id: string; result: OfficeExtension.ClientResult<string> }[] = [];
       for (const n of slideIndexes) {
-        const slide = slides.items[n - 1];
-        if (!slide) continue;
-        if (this.createdIds.has(slide.id) || this.snapshots.has(slide.id)) continue;
-        if (!this.originalOrder.includes(slide.id)) continue; // 本轮之前就不存在，无需快照
-        exports.push({ id: slide.id, result: slide.exportAsBase64() });
+        const id = slides.items[n - 1]?.id;
+        if (!id) continue;
+        if (this.createdIds.has(id) || this.snapshots.has(id)) continue;
+        if (!this.originalOrder.includes(id)) continue; // 本轮之前就不存在，无需快照
+        exports.push({ id, result: slides.getItemAt(n - 1).exportAsBase64() });
       }
       if (!exports.length) return;
       await ctx.sync();
@@ -109,26 +109,33 @@ export class PptChangeset {
     });
   }
 
+  // 网页版实测：按 ID 查找刚新建的页（getItem / getItemOrNullObject）会暂时失败。
+  // 因此一律先读出全部 ID 算出位置，再按序号（getItemAt）操作。
   async undo(): Promise<void> {
     if (this.undone) return;
     await PowerPoint.run(async (ctx) => {
       const slides = ctx.presentation.slides;
+      const indexOf = async (id: string) => {
+        slides.load('items/id');
+        await ctx.sync();
+        return slides.items.findIndex((s) => s.id === id);
+      };
 
       // 1. 删除本轮新建的页
       for (const id of this.createdIds) {
-        const s = slides.getItemOrNullObject(id);
-        await ctx.sync();
-        if (!s.isNullObject) s.delete();
+        const i = await indexOf(id);
+        if (i >= 0) {
+          slides.getItemAt(i).delete();
+          await ctx.sync();
+        }
       }
-      await ctx.sync();
 
       // 2. 按原位置从前往后还原被修改 / 删除 / 移动过的页
       const restore = [...this.snapshots.entries()].sort((a, b) => a[1].index - b[1].index);
       for (const [id, snap] of restore) {
-        const current = slides.getItemOrNullObject(id);
-        await ctx.sync();
-        if (!current.isNullObject) {
-          current.delete();
+        const i = await indexOf(id);
+        if (i >= 0) {
+          slides.getItemAt(i).delete();
           await ctx.sync();
         }
         slides.load('items/id');

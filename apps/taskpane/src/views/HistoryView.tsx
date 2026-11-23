@@ -1,9 +1,10 @@
 // 历史页：当前文档 / 全部；搜索；打开继续；导出 Markdown；删除
 
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Input, makeStyles, Tab, TabList, Text, tokens } from '@fluentui/react-components';
+import { Button, Input, makeStyles, Tab, TabList, Text, Textarea, tokens } from '@fluentui/react-components';
 import { CopyRegular, DeleteRegular, SearchRegular } from '@fluentui/react-icons';
 import { t } from '../i18n';
+import { copyText } from '../components/copy';
 import { currentDoc, deleteSession, listSessions, sessionToMarkdown, type Session } from '../state/sessions';
 
 const useStyles = makeStyles({
@@ -36,6 +37,8 @@ export function HistoryView({ onOpen }: { onOpen: (s: Session) => void }) {
   const [docId, setDocId] = useState('');
   const [scope, setScope] = useState<'doc' | 'all'>('doc');
   const [q, setQ] = useState('');
+  // 复制结果：text 为空表示已复制；非空表示需要用户手动复制
+  const [manual, setManual] = useState<{ id: string; text: string } | null>(null);
 
   const reload = () => listSessions().then(setAll).catch(() => setAll([]));
   useEffect(() => {
@@ -82,7 +85,10 @@ export function HistoryView({ onOpen }: { onOpen: (s: Session) => void }) {
                 icon={<CopyRegular />}
                 aria-label={t('复制为 Markdown')}
                 title={t('复制为 Markdown')}
-                onClick={() => navigator.clipboard?.writeText(sessionToMarkdown(x))}
+                onClick={async () => {
+                  const md = sessionToMarkdown(x);
+                  setManual((await copyText(md)) ? { id: x.id, text: '' } : { id: x.id, text: md });
+                }}
               />
               <Button
                 size="small"
@@ -95,6 +101,18 @@ export function HistoryView({ onOpen }: { onOpen: (s: Session) => void }) {
                 }}
               />
             </div>
+            {manual?.id === x.id &&
+              (manual.text ? (
+                <Textarea
+                  readOnly
+                  value={manual.text}
+                  textarea={{ rows: 4, onFocus: (e) => e.currentTarget.select() }}
+                  placeholder={t('浏览器不允许自动复制，请全选后按 ⌘C / Ctrl+C')}
+                  aria-label={t('浏览器不允许自动复制，请全选后按 ⌘C / Ctrl+C')}
+                />
+              ) : (
+                <Text size={200}>{t('已复制 ✓')}</Text>
+              ))}
           </div>
         );
       })}

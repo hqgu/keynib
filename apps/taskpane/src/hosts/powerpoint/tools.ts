@@ -22,6 +22,16 @@ async function slideAt(ctx: PowerPoint.RequestContext, n: number) {
   return ctx.presentation.slides.getItemAt(n - 1);
 }
 
+// 按 shapeId 取形状：先读出 ID 列表再按序号取（同样避开网页版按 ID 查找刚新建对象的暂时失败）
+async function shapeById(ctx: PowerPoint.RequestContext, slide: PowerPoint.Slide, id: string) {
+  const shapes = slide.shapes;
+  shapes.load('items/id');
+  await ctx.sync();
+  const i = shapes.items.findIndex((x) => x.id === id);
+  if (i < 0) throw new Error(`形状 ${id} 不存在，请先 read_slide 获取最新 shapeId`);
+  return shapes.getItemAt(i);
+}
+
 // 只读工具遇到网页版的暂时性 GeneralException 时重试（写入工具不重试，避免重复插入）
 async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
   for (let i = 0; ; i++) {
@@ -66,7 +76,7 @@ export async function readShapes(ctx: PowerPoint.RequestContext, slide: PowerPoi
 
   // 先整批读取文本，失败再逐个容错（个别占位符没有文本框）
   const readOne = async (i: number) => {
-    const s = shapes.items[i];
+    const s = shapes.getItemAt(i); // 按序号取，避开网页版按 ID 查找新对象的暂时失败
     if (infos[i].type === 'Table') {
       const t = s.getTable();
       t.load('values');
@@ -184,7 +194,7 @@ function pptToolList(getChangeset: () => PptChangeset, getProfile: () => DeckPro
             for (const sh of await readShapes(ctx, slide)) {
               if (!sh.text?.trim()) continue;
               const f = profileFontFor(sh, profile, { setBodySize: !!setBodySize });
-              const font = slide.shapes.getItem(sh.id).textFrame.textRange.font;
+              const font = (await shapeById(ctx, slide, sh.id)).textFrame.textRange.font;
               font.name = f.name;
               if (f.size) font.size = f.size;
               if (f.bold) font.bold = true;
@@ -341,7 +351,7 @@ function pptToolList(getChangeset: () => PptChangeset, getProfile: () => DeckPro
       run: ({ slide, shapeId, text, font }: { slide: number; shapeId: string; text: string; font?: FontArgs }) =>
         PowerPoint.run(async (ctx) => {
           const s = await slideAt(ctx, slide);
-          const tr = s.shapes.getItem(shapeId).textFrame.textRange;
+          const tr = (await shapeById(ctx, s, shapeId)).textFrame.textRange;
           tr.text = text;
           applyFont(tr.font, font);
           await ctx.sync();
@@ -368,7 +378,7 @@ function pptToolList(getChangeset: () => PptChangeset, getProfile: () => DeckPro
       run: (a: { slide: number; shapeId: string; font?: FontArgs; fill?: string; left?: number; top?: number; width?: number; height?: number }) =>
         PowerPoint.run(async (ctx) => {
           const s = await slideAt(ctx, a.slide);
-          const shape = s.shapes.getItem(a.shapeId);
+          const shape = await shapeById(ctx, s, a.shapeId);
           if (a.font) applyFont(shape.textFrame.textRange.font, a.font);
           if (a.fill === 'none') shape.fill.clear();
           else if (a.fill) shape.fill.setSolidColor(a.fill);
@@ -499,7 +509,7 @@ function pptToolList(getChangeset: () => PptChangeset, getProfile: () => DeckPro
       run: ({ slide, shapeId }: { slide: number; shapeId: string }) =>
         PowerPoint.run(async (ctx) => {
           const s = await slideAt(ctx, slide);
-          s.shapes.getItem(shapeId).delete();
+          (await shapeById(ctx, s, shapeId)).delete();
           await ctx.sync();
           return { text: 'ok', summary: t('第 {n} 页：删除形状', { n: slide }) };
         }),
